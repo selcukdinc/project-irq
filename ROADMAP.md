@@ -190,24 +190,24 @@
 > Hedef: Claude Code çalışırken logları izle, loop tespiti yap, bildirim gönder.
 
 ### 6A — Log İzleme
-- [ ] Claude Code çıktısı real-time izleniyor
-- [ ] Log dosyası `~/.irq/logs/` altında tutuluyor
-- [ ] `bot/core/log_watcher.py` yazıldı (async tail mantığı)
+- [x] Claude Code çıktısı real-time izleniyor
+- [x] Log dosyası `~/.irq/logs/` altında tutuluyor
+- [x] `bot/core/log_watcher.py` yazıldı (async tail mantığı)
 
 ### 6B — Loop Tespiti
-- [ ] Loop kriterleri tanımlandı:
+- [x] Loop kriterleri tanımlandı:
   - Aynı hata mesajı **3+ kez** tekrarlanırsa
   - **5 dakika** boyunca yeni çıktı yoksa
   - Çıktı dosyası boyutu **10MB**'ı aşarsa
-- [ ] `bot/handlers/watchdog.py` yazıldı
-- [ ] Loop tespit edilince Telegram mesajı gidiyor
-- [ ] Mesajda **Devam Et / Atla / Durdur** inline butonları var
+- [x] `bot/handlers/watchdog.py` yazıldı
+- [x] Loop tespit edilince Telegram mesajı gidiyor
+- [x] Mesajda **Devam Et / Atla / Durdur** inline butonları var
 
 ### 6C — Süreç Kontrolü
-- [ ] `/pause` komutu: çalışan Claude Code process'ini durdurur (SIGSTOP)
-- [ ] `/resume` komutu: devam ettirir (SIGCONT)
-- [ ] `/kill` komutu: process'i sonlandırır
-- [ ] Inline buton callback'leri çalışıyor
+- [x] `/pause` komutu: çalışan Claude Code process'ini durdurur (SIGSTOP)
+- [x] `/resume` komutu: devam ettirir (SIGCONT)
+- [x] `/kill` komutu: process'i sonlandırır
+- [x] Inline buton callback'leri çalışıyor
 
 ### 6D — /menu Command Center
 
@@ -215,21 +215,19 @@
 > ana panel. Faz 6A-6C tamamlanınca mevcut callback handler'ları
 > zaten hazır olduğundan sadece UI katmanı eklenir (~1-2 saat).
 
-- [ ] `cmd_menu` ve `_build_menu_content()` helper'ı yazıldı
-- [ ] Ana panel mesajı:
+- [x] `cmd_menu` ve `_build_menu_content()` helper'ı yazıldı
+- [x] Ana panel mesajı:
   ```
   🏠 IRQ Command Center
   📂 <proje_adı>  <bar> %<ilerleme>
 
   [▶️ Çalıştır]    [⏹ İptal]
+  [⏸ Duraklat]    [▶ Devam Et]
   [📊 Roadmap]    [📂 Projeler]
-  [🤖 Model]      [💰 Maliyet]
-  [🔍 Watchdog]   [⚙️ Ayarlar]
+  [🤖 Model]      [📋 Geçmiş]
   ```
-- [ ] "▶️ Çalıştır" butonu: prompt giriş akışını başlatır
-- [ ] "📊 Roadmap" butonu: `/where` ile entegre (← Geri ile)
-- [ ] Tüm butonlar mevcut callback handler'larını tetikler (yeni iş mantığı gerekmez)
-- [ ] `/menu` BotFather komut listesine eklendi
+- [x] Tüm butonlar mevcut callback handler'larını tetikler (yeni iş mantığı gerekmez)
+- [x] `/menu` BotFather komut listesine eklendi
 
 ---
 
@@ -312,7 +310,7 @@
 | v0.3.0 | Faz 3 | — | Claude Code entegrasyonu |
 | v0.4.0 | Faz 4 | Mart 2026 | Model kontrolü |
 | v0.5.0 | Faz 5 | Mart 2026 | Çalıştırma geçmişi & bildirimler |
-| v0.6.0 | Faz 6 | — | Watchdog engine |
+| v0.6.0 | Faz 6 | Mart 2026 | Watchdog engine + /menu Command Center |
 | v0.7.0 | Faz 7 | — | Maliyet kontrolü |
 | v1.0.0 | Faz 8 | — | Çok kullanıcı |
 | v2.0.0 | Faz 9 | — | Flutter mobil |

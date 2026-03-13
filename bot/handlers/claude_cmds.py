@@ -1,6 +1,8 @@
 """
 Project IRQ — Claude Code Handler'ları
 Faz 3A-3B: /run, /cancel komutları + güvenlik & kontrol
+Faz 6A: LogWatcher entegrasyonu (streaming + loop tespiti)
+Faz 6D: /menu Command Center
 """
 
 from __future__ import annotations
@@ -9,11 +11,15 @@ import logging
 import os
 import time
 from collections import deque
+from datetime import datetime
+from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from core.claude_runner import runner
+from core.config import LOGS_DIR, ensure_irq_dirs
+from core.log_watcher import LogWatcher
 from core.model_manager import (
     SUPPORTED_MODELS,
     get_current_model,
@@ -23,6 +29,7 @@ from core.model_manager import (
 )
 from core.notifier import format_history_list, load_history, make_run_record, save_run
 from core.project_registry import get_active_project
+from core.roadmap_parser import parse_roadmap
 
 logger = logging.getLogger(__name__)
 
@@ -137,11 +144,27 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
         parse_mode="Markdown",
     )
 
-    # Claude Code çalıştır
+    # Faz 6A: LogWatcher hazırla
+    ensure_irq_dirs()
+    log_filename = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{project['name']}.log"
+    log_path = LOGS_DIR / log_filename
+
+    # Watchdog callback — bot context'ini taşır
+    from handlers.watchdog import create_watchdog_callback
+    bot = update.get_bot()
+    chat_id = str(update.effective_chat.id)
+    watchdog_cb = create_watchdog_callback(bot, chat_id)
+
+    watcher = LogWatcher(log_path=log_path, watchdog_callback=watchdog_cb)
+    watcher.start_idle_monitor_task()
+
+    # Claude Code çalıştır (streaming line_callback ile)
     result = await runner.run(
         prompt=prompt,
         project_path=project["path"],
+        line_callback=watcher.feed,
     )
+    watcher.stop_idle_monitor()
 
     # Faz 5: Çalıştırma geçmişine kaydet
     try:
@@ -369,3 +392,189 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
 
     await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
+
+
+# ------------------------------------------------------------------
+# /menu — Ana kontrol paneli (Faz 6D)
+# ------------------------------------------------------------------
+
+def _build_menu_content() -> tuple[str, InlineKeyboardMarkup]:
+    """Ana menü mesajı ve inline butonları oluşturur."""
+    project = get_active_project()
+    current_model = get_current_model()
+
+    # Proje satırı
+    if project:
+        # ROADMAP ilerleme hesapla
+        roadmap_path = Path(project["path"]) / project.get("roadmap_path", "ROADMAP.md")
+        try:
+            phases = parse_roadmap(roadmap_path)
+            total_steps = sum(len(p.steps) for p in phases)
+            done_steps = sum(sum(1 for s in p.steps if s.done) for p in phases)
+            pct = int((done_steps / total_steps * 100) if total_steps else 0)
+            bar_filled = pct // 10
+            bar = "▓" * bar_filled + "░" * (10 - bar_filled)
+            proj_line = f"📂 {project['name']}  {bar}  %{pct}"
+        except Exception:
+            proj_line = f"📂 {project['name']}"
+    else:
+        proj_line = "📂 Aktif proje yok"
+
+    # Durum satırı
+    if runner.is_running:
+        status_line = "🟢 Çalışıyor" + (" (duraklatıldı)" if runner.is_paused else "")
+    else:
+        status_line = "⚪ Boşta"
+
+    text = (
+        "🏠 *IRQ Command Center*\n"
+        f"{proj_line}\n"
+        f"{status_line}  |  🤖 `{current_model.split('-')[1] if '-' in current_model else current_model}`\n"
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton("▶️ Çalıştır", callback_data="menu_run"),
+            InlineKeyboardButton("⏹ İptal", callback_data="menu_cancel"),
+        ],
+        [
+            InlineKeyboardButton("⏸ Duraklat", callback_data="menu_pause"),
+            InlineKeyboardButton("▶ Devam Et", callback_data="menu_resume"),
+        ],
+        [
+            InlineKeyboardButton("📊 Roadmap", callback_data="menu_roadmap"),
+            InlineKeyboardButton("📂 Projeler", callback_data="menu_projects"),
+        ],
+        [
+            InlineKeyboardButton("🤖 Model", callback_data="menu_model"),
+            InlineKeyboardButton("📋 Geçmiş", callback_data="menu_history"),
+        ],
+    ]
+    return text, InlineKeyboardMarkup(buttons)
+
+
+async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ana kontrol panelini göster."""
+    chat_id = str(update.effective_chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("🚫 Yetkiniz yok.")
+        return
+
+    text, markup = _build_menu_content()
+    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=markup)
+
+
+async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ana menü inline buton callback'leri."""
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = str(query.message.chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await query.answer("🚫 Yetkiniz yok.", show_alert=True)
+        return
+
+    action = query.data  # "menu_run", "menu_cancel", vb.
+
+    if action == "menu_run":
+        await query.edit_message_text(
+            "📝 Çalıştırmak için `/run <prompt>` komutunu kullan.\n\n"
+            "Örnek: `/run projedeki test sayısını söyle`",
+            parse_mode="Markdown",
+        )
+
+    elif action == "menu_cancel":
+        if not runner.is_running:
+            await query.answer("Çalışan komut yok.", show_alert=True)
+        else:
+            await runner.cancel()
+            text, markup = _build_menu_content()
+            await query.edit_message_text(
+                "🚫 Komut iptal edildi.\n\n" + text,
+                parse_mode="Markdown",
+                reply_markup=markup,
+            )
+
+    elif action == "menu_pause":
+        if not runner.is_running:
+            await query.answer("Çalışan komut yok.", show_alert=True)
+        elif runner.is_paused:
+            await query.answer("Zaten duraklatılmış.", show_alert=False)
+        else:
+            ok = await runner.pause()
+            if ok:
+                text, markup = _build_menu_content()
+                await query.edit_message_text(
+                    "⏸ Duraklatıldı.\n\n" + text,
+                    parse_mode="Markdown",
+                    reply_markup=markup,
+                )
+            else:
+                await query.answer("Duraklatılamadı.", show_alert=True)
+
+    elif action == "menu_resume":
+        if not runner.is_running:
+            await query.answer("Çalışan komut yok.", show_alert=True)
+        elif not runner.is_paused:
+            await query.answer("Komut zaten çalışıyor.", show_alert=False)
+        else:
+            ok = await runner.resume()
+            if ok:
+                text, markup = _build_menu_content()
+                await query.edit_message_text(
+                    "▶️ Devam ediyor.\n\n" + text,
+                    parse_mode="Markdown",
+                    reply_markup=markup,
+                )
+            else:
+                await query.answer("Devam ettirilemedi.", show_alert=True)
+
+    elif action == "menu_roadmap":
+        # /where komutunu inline olarak göster
+        from handlers.projects import cmd_where
+        await query.edit_message_text(
+            "📊 Roadmap için /where veya /roadmap komutunu kullan.",
+            parse_mode="Markdown",
+        )
+
+    elif action == "menu_projects":
+        await query.edit_message_text(
+            "📂 Projeler için /projects komutunu kullan.",
+            parse_mode="Markdown",
+        )
+
+    elif action == "menu_model":
+        current = get_current_model()
+        buttons = [
+            [InlineKeyboardButton(
+                f"{'✅ ' if mid == current else ''}{desc.split('—')[0].strip()}",
+                callback_data=f"model_set:{mid}",
+            )]
+            for mid, desc in SUPPORTED_MODELS.items()
+        ]
+        lines = [f"🤖 *Mevcut Model:* `{current}`\n", "📋 *Kullanılabilir Modeller:*"]
+        for mid, desc in SUPPORTED_MODELS.items():
+            marker = "✅" if mid == current else "  "
+            lines.append(f"{marker} `{mid}`\n    _{desc}_")
+        await query.edit_message_text(
+            "\n".join(lines),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+    elif action == "menu_history":
+        records = load_history(5)
+        if not records:
+            await query.edit_message_text("📭 Henüz tamamlanmış çalıştırma yok.")
+            return
+        lines = ["📋 *Son 5 Çalıştırma*\n"]
+        for i, r in enumerate(records, 1):
+            mins = int(r.elapsed_seconds // 60)
+            secs = int(r.elapsed_seconds % 60)
+            elapsed = f"{mins}dk {secs}s" if mins > 0 else f"{secs}s"
+            prompt_short = r.prompt[:40] + ("…" if len(r.prompt) > 40 else "")
+            lines.append(
+                f"{i}. {r.status_emoji} {elapsed}\n"
+                f"   {prompt_short}"
+            )
+        await query.edit_message_text("\n\n".join(lines), parse_mode="Markdown")

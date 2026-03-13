@@ -1,20 +1,25 @@
 """
 Project IRQ — Claude Code CLI Runner
 Faz 3A: Claude Code CLI'ı async subprocess ile çalıştırır.
+Faz 6A: Streaming line-by-line output + pause/resume desteği.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import signal
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Optional
 
 from .config import CLAUDE_TIMEOUT
 from .model_manager import get_current_model
 
 logger = logging.getLogger(__name__)
+
+# Line callback type: her çıktı satırı için çağrılır
+LineCallback = Callable[[str], None]
 
 
 @dataclass
@@ -41,15 +46,21 @@ class ClaudeRunner:
     """
     Claude Code CLI wrapper.
     Aynı anda sadece 1 process çalışır (eşzamanlılık koruması).
+    Faz 6: pause/resume (SIGSTOP/SIGCONT) ve streaming output desteği.
     """
 
     def __init__(self) -> None:
         self._process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
+        self._paused = False
 
     @property
     def is_running(self) -> bool:
         return self._process is not None and self._process.returncode is None
+
+    @property
+    def is_paused(self) -> bool:
+        return self._paused
 
     async def run(
         self,
@@ -57,6 +68,7 @@ class ClaudeRunner:
         project_path: str,
         model: str | None = None,
         timeout: int | None = None,
+        line_callback: LineCallback | None = None,
     ) -> RunResult:
         """
         Claude Code CLI'ı çalıştır ve sonucu döndür.
@@ -66,6 +78,7 @@ class ClaudeRunner:
             project_path: Proje dizini (--add-dir)
             model: Kullanılacak model (varsayılan: config'den)
             timeout: Timeout (saniye, varsayılan: config'den)
+            line_callback: Her çıktı satırı için çağrılacak callable (Faz 6A)
         """
         if self.is_running:
             return RunResult(
@@ -75,6 +88,7 @@ class ClaudeRunner:
 
         model = model or get_current_model()
         timeout = timeout or CLAUDE_TIMEOUT
+        self._paused = False
 
         cmd = [
             "claude",
@@ -99,12 +113,13 @@ class ClaudeRunner:
                 )
 
                 try:
-                    stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                        self._process.communicate(),
+                    stdout_buf, stderr_buf = await asyncio.wait_for(
+                        self._read_streams(line_callback),
                         timeout=timeout,
                     )
-                    result.stdout = stdout_bytes.decode("utf-8", errors="replace")
-                    result.stderr = stderr_bytes.decode("utf-8", errors="replace")
+                    await self._process.wait()
+                    result.stdout = stdout_buf
+                    result.stderr = stderr_buf
                     result.returncode = self._process.returncode or 0
                 except asyncio.TimeoutError:
                     logger.warning("Claude CLI timeout (%ds)", timeout)
@@ -123,6 +138,7 @@ class ClaudeRunner:
                 logger.error("Claude CLI hatası: %s", exc, exc_info=True)
             finally:
                 self._process = None
+                self._paused = False
                 result.elapsed_seconds = time.monotonic() - start
 
         status = "OK" if result.ok else "FAIL"
@@ -132,6 +148,45 @@ class ClaudeRunner:
         )
         return result
 
+    async def _read_streams(
+        self,
+        line_callback: LineCallback | None,
+    ) -> tuple[str, str]:
+        """
+        stdout ve stderr'ı paralel oku.
+        line_callback varsa her stdout satırı için çağırır.
+        """
+        proc = self._process
+        assert proc is not None
+
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
+
+        async def read_stdout() -> None:
+            assert proc.stdout is not None
+            while True:
+                raw = await proc.stdout.readline()
+                if not raw:
+                    break
+                line = raw.decode("utf-8", errors="replace")
+                stdout_lines.append(line)
+                if line_callback:
+                    try:
+                        line_callback(line)
+                    except Exception as exc:
+                        logger.debug("line_callback hatası: %s", exc)
+
+        async def read_stderr() -> None:
+            assert proc.stderr is not None
+            while True:
+                raw = await proc.stderr.readline()
+                if not raw:
+                    break
+                stderr_lines.append(raw.decode("utf-8", errors="replace"))
+
+        await asyncio.gather(read_stdout(), read_stderr())
+        return "".join(stdout_lines), "".join(stderr_lines)
+
     async def cancel(self) -> bool:
         """Çalışan process'i iptal et. İptal edildiyse True döner."""
         proc = self._process
@@ -139,9 +194,17 @@ class ClaudeRunner:
             return False
 
         logger.info("Claude CLI iptal ediliyor (PID: %s)", proc.pid)
+
+        # Önce SIGCONT gönder (pause edilmişse resume et, yoksa kill bloklanır)
+        if self._paused:
+            try:
+                proc.send_signal(signal.SIGCONT)
+            except ProcessLookupError:
+                pass
+            self._paused = False
+
         try:
             proc.terminate()
-            # 3 saniye bekle, kapanmazsa kill
             try:
                 await asyncio.wait_for(proc.wait(), timeout=3)
             except asyncio.TimeoutError:
@@ -151,6 +214,46 @@ class ClaudeRunner:
             pass
 
         return True
+
+    async def pause(self) -> bool:
+        """
+        Çalışan process'i durdur (SIGSTOP).
+        Faz 6C: /pause komutu için.
+        """
+        proc = self._process
+        if proc is None or proc.returncode is not None:
+            return False
+        if self._paused:
+            return False  # Zaten duraklatılmış
+
+        try:
+            proc.send_signal(signal.SIGSTOP)
+            self._paused = True
+            logger.info("Claude CLI duraklatıldı (PID: %s)", proc.pid)
+            return True
+        except (ProcessLookupError, OSError) as exc:
+            logger.warning("SIGSTOP gönderilemedi: %s", exc)
+            return False
+
+    async def resume(self) -> bool:
+        """
+        Duraklatılmış process'i devam ettir (SIGCONT).
+        Faz 6C: /resume komutu için.
+        """
+        proc = self._process
+        if proc is None or proc.returncode is not None:
+            return False
+        if not self._paused:
+            return False  # Zaten çalışıyor
+
+        try:
+            proc.send_signal(signal.SIGCONT)
+            self._paused = False
+            logger.info("Claude CLI devam ettiriliyor (PID: %s)", proc.pid)
+            return True
+        except (ProcessLookupError, OSError) as exc:
+            logger.warning("SIGCONT gönderilemedi: %s", exc)
+            return False
 
 
 # Singleton instance — tüm handler'lar bunu kullanır

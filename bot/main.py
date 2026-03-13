@@ -30,7 +30,17 @@ from handlers.projects import (
     cmd_roadmap,
     cmd_where,
 )
-from handlers.claude_cmds import callback_model_set, callback_run_confirm, cmd_cancel, cmd_history, cmd_model, cmd_run
+from handlers.claude_cmds import (
+    callback_menu,
+    callback_model_set,
+    callback_run_confirm,
+    cmd_cancel,
+    cmd_history,
+    cmd_menu,
+    cmd_model,
+    cmd_run,
+)
+from handlers.watchdog import callback_watchdog, cmd_kill, cmd_pause, cmd_resume
 
 # -------------------------------------------------------------
 # Logging
@@ -84,6 +94,16 @@ def register_handlers(app: Application) -> None:
     # Faz 4 — Model kontrolü
     app.add_handler(CommandHandler("model", cmd_model))
     app.add_handler(CallbackQueryHandler(callback_model_set, pattern=r"^model_set:"))
+
+    # Faz 6B-6C — Watchdog: loop bildirimi + süreç kontrolü
+    app.add_handler(CommandHandler("pause",  cmd_pause))
+    app.add_handler(CommandHandler("resume", cmd_resume))
+    app.add_handler(CommandHandler("kill",   cmd_kill))
+    app.add_handler(CallbackQueryHandler(callback_watchdog, pattern=r"^watchdog:"))
+
+    # Faz 6D — /menu Command Center
+    app.add_handler(CommandHandler("menu", cmd_menu))
+    app.add_handler(CallbackQueryHandler(callback_menu, pattern=r"^menu_"))
 
 
 # -------------------------------------------------------------

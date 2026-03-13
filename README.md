@@ -10,7 +10,7 @@ akıllı geliştirme asistanı.
 
 ## ✨ Özellikler
 
-### ✅ Mevcut (Faz 1–5 + 2D)
+### ✅ Mevcut (Faz 1–6 + 2D)
 - 🤖 Telegram bot — `/start`, `/status`, `/help`, `/ping`
 - 🏠 Mac'te yerel çalışma — sunucu gereksiz, maliyet $0
 - 📂 **Çoklu Proje Yönetimi** — `irq init` ile kayıt, inline butonlarla seçim
@@ -20,10 +20,11 @@ akıllı geliştirme asistanı.
 - 🔐 **Güvenlik & Kontrol** — admin doğrulama, hassas komut onayı, rate limiting
 - 🔄 **Model Kontrolü** — Sonnet / Opus / Haiku seçimi inline butonlarla (`/model`)
 - 📋 **Çalıştırma Geçmişi** — her `/run` kalıcı loglanır, `/history` ile listele
+- 🔍 **Watchdog Engine** — real-time log izleme, loop tespiti (tekrar eden hata / 5dk sessizlik / 10MB), Telegram bildirimi
+- ⏸ **Süreç Kontrolü** — `/pause` (SIGSTOP), `/resume` (SIGCONT), `/kill`
+- 🏠 **Command Center** — `/menu` ile tek panelden tüm kontrol (inline butonlar)
 
 ### ⏳ Planlanan
-- 🔍 **Watchdog** — Claude Code log izleme, loop tespiti, `/pause` `/resume`
-- 🏠 **Command Center** — `/menu` ile tek panelden tüm kontrol
 - 💰 **Maliyet Kontrolü** — API harcama takibi, `/budget` `/cost`
 - 👥 **Çok Kullanıcı** — SQLite, kullanıcı bazlı izolasyon
 - 📱 **Flutter Mobil** — IRQ Admin uygulaması
@@ -39,9 +40,11 @@ akıllı geliştirme asistanı.
 │   (Bulut)    │  polling   │  IRQ Bot (Python)          │
 └──────────────┘           │  ├── Telegram handler'lar   │
        ▲                   │  ├── Claude Code CLI runner │
-       │                   │  ├── Proje registry         │
-   Telegram                │  ├── ROADMAP parser         │
-   Kullanıcısı             │  ├── Model manager          │
+       │                   │  ├── Log Watcher (stream)   │
+   Telegram                │  ├── Watchdog (loop detect) │
+   Kullanıcısı             │  ├── Proje registry         │
+                           │  ├── ROADMAP parser         │
+                           │  ├── Model manager          │
                            │  └── Notifier (history)     │
                            │                             │
                            │  irq CLI (terminal)         │
@@ -113,13 +116,17 @@ Telegram'dan `/where` yazarak başla.
 | `/addproject <isim> <path>` | Proje kaydet (terminal'de `irq init` tercih edilir) |
 | `/removeproject <id>` | Proje sil |
 
-### Claude Code
+### Claude Code & Watchdog
 | Komut | Açıklama |
 |-------|----------|
 | `/run <prompt>` | Claude Code'a prompt gönder |
 | `/cancel` | Çalışan komutu iptal et |
+| `/pause` | Çalışan process'i durdur (SIGSTOP) |
+| `/resume` | Duraklatılmış process'i devam ettir (SIGCONT) |
+| `/kill` | Process'i sonlandır |
 | `/model` | Aktif modeli göster + inline değiştir |
 | `/history [n]` | Son N çalıştırmanın listesi (varsayılan: 10) |
+| `/menu` | Ana kontrol paneli — tüm özellikler inline butonlarla |
 
 ### Sistem
 | Komut | Açıklama |
