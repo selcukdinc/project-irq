@@ -9,7 +9,7 @@
 birden fazla projeyi yöneten, faz ilerlemesini takip eden ve tamamlanan
 görevlerin özetini raporlayan akıllı geliştirme asistanı sistemidir.
 
-- **Bot:** `@reque_bot` (Telegram)
+- **Bot:** `@ireque_bot` (Telegram)
 - **Çalışma ortamı:** Mac (yerel) — sunucu yok
 - **Gelecek:** IRQ Admin (Flutter mobil uygulama)
 - **Hedef:** Tek kullanıcıdan çok kullanıcıya ölçeklenebilir SaaS
@@ -35,7 +35,7 @@ Tamamlanan adımları `[x]` olarak işaretle.
 ```
 ┌──────────────┐           ┌──────────────────────────────────────┐
 │   Telegram   │  Bot API  │  Mac (Geliştirme Makinesi)           │
-│   @reque_bot │ ◄────────►│                                      │
+│   @ireque_bot │ ◄────────►│                                      │
 │   (Bulut)    │  polling   │  bot/main.py ─── entry point         │
 └──────────────┘           │  ├── handlers/                        │
        ▲                   │  │   ├── commands.py     /start etc.  │

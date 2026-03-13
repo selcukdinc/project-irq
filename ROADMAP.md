@@ -15,7 +15,7 @@
 > Hedef: Proje iskeletinin hazır olması, bot tokenlarının ayarlanması.
 
 - [x] Proje ismi belirlendi: **Project IRQ**
-- [x] Bot kullanıcı adı alındı: `@reque_bot`
+- [x] Bot kullanıcı adı alındı: `@ireque_bot`
 - [x] Klasör yapısı tasarlandı
 - [x] `.env.example` oluşturuldu
 - [x] `.gitignore` oluşturuldu
