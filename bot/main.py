@@ -1,0 +1,66 @@
+"""
+Project IRQ — IRQ Watchdog Bot
+Entry point. Handler'ları register eder, polling başlatır.
+"""
+
+import logging
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# .env dosyasını yükle (proje kök dizini)
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_env_path)
+
+from telegram.ext import Application, CommandHandler
+
+from handlers.commands import cmd_start, cmd_status, cmd_help, cmd_ping
+
+# -------------------------------------------------------------
+# Logging
+# -------------------------------------------------------------
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+)
+logger = logging.getLogger(__name__)
+
+
+# -------------------------------------------------------------
+# Handler kaydı
+# -------------------------------------------------------------
+def register_handlers(app: Application) -> None:
+    app.add_handler(CommandHandler("start",  cmd_start))
+    app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("help",   cmd_help))
+    app.add_handler(CommandHandler("ping",   cmd_ping))
+
+
+# -------------------------------------------------------------
+# Main
+# -------------------------------------------------------------
+def main() -> None:
+    token = os.environ.get("TELEGRAM_TOKEN")
+    if not token:
+        logger.error("TELEGRAM_TOKEN env değişkeni bulunamadı!")
+        raise SystemExit(1)
+
+    logger.info("IRQ Watchdog Bot başlatılıyor...")
+
+    app = Application.builder().token(token).build()
+    register_handlers(app)
+
+    async def error_handler(update, context):
+        logger.error("Yakalanmamış hata: %s", context.error, exc_info=context.error)
+
+    app.add_error_handler(error_handler)
+
+    logger.info("Polling modunda çalışıyor...")
+    app.run_polling(drop_pending_updates=True)
+
+
+if __name__ == "__main__":
+    main()
