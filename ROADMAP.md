@@ -15,7 +15,7 @@
 > Hedef: Proje iskeletinin hazır olması, bot tokenlarının ayarlanması.
 
 - [x] Proje ismi belirlendi: **Project IRQ**
-- [x] Bot kullanıcı adı alındı: `@ireq_bot`
+- [x] Bot kullanıcı adı alındı: `@reque_bot`
 - [x] Klasör yapısı tasarlandı
 - [x] `.env.example` oluşturuldu
 - [x] `.gitignore` oluşturuldu
@@ -40,7 +40,7 @@
 - [x] Bot local olarak test edildi: `python bot/main.py`
 - [x] `/start` komutu çalıştı, Chat ID alındı
 - [x] `ADMIN_CHAT_ID` `.env`'e yazıldı
-- [ ] Bot'a BotFather üzerinden komut listesi eklendi (`/setcommands`)
+- [x] Bot'a BotFather üzerinden komut listesi eklendi (`/setcommands`)
 - [x] Handler'lar `bot/handlers/commands.py`'de (modüler yapı) ✔️ zaten orada
 
 ---

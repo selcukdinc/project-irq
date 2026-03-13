@@ -4,7 +4,7 @@ Telegram üzerinden Claude Code'a uzaktan komut veren, birden fazla projeyi yön
 faz ilerlemesini takip eden ve tamamlanan görevlerin özetini raporlayan
 akıllı geliştirme asistanı.
 
-**Bot:** [@ireq_bot](https://t.me/ireq_bot)
+**Bot:** [@reque_bot](https://t.me/reque_bot)
 
 ---
 
@@ -29,7 +29,7 @@ akıllı geliştirme asistanı.
 ```
 ┌──────────────┐           ┌────────────────────────────┐
 │   Telegram   │  Bot API  │  Mac (Senin Bilgisayarın)  │
-│   @ireq_bot  │ ◄────────►│                            │
+│   @reque_bot │ ◄────────►│                            │
 │   (Bulut)    │  polling   │  IRQ Bot                   │
 └──────────────┘           │  ├── Telegram handler'lar   │
        ▲                   │  ├── Claude Code CLI runner │
