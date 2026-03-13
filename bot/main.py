@@ -30,7 +30,7 @@ from handlers.projects import (
     cmd_roadmap,
     cmd_where,
 )
-from handlers.claude_cmds import callback_model_set, callback_run_confirm, cmd_cancel, cmd_model, cmd_run
+from handlers.claude_cmds import callback_model_set, callback_run_confirm, cmd_cancel, cmd_history, cmd_model, cmd_run
 
 # -------------------------------------------------------------
 # Logging
@@ -77,6 +77,9 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("run",    cmd_run))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CallbackQueryHandler(callback_run_confirm, pattern=r"^run_confirm:"))
+
+    # Faz 5C — Çalıştırma geçmişi
+    app.add_handler(CommandHandler("history", cmd_history))
 
     # Faz 4 — Model kontrolü
     app.add_handler(CommandHandler("model", cmd_model))

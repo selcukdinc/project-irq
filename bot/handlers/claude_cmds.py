@@ -21,6 +21,7 @@ from core.model_manager import (
     resolve_model,
     set_model,
 )
+from core.notifier import format_history_list, load_history, make_run_record, save_run
 from core.project_registry import get_active_project
 
 logger = logging.getLogger(__name__)
@@ -141,6 +142,23 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
         prompt=prompt,
         project_path=project["path"],
     )
+
+    # Faz 5: Çalıştırma geçmişine kaydet
+    try:
+        record = make_run_record(
+            project_name=project["name"],
+            project_path=project["path"],
+            prompt=prompt,
+            wall_start=result.wall_start,
+            elapsed=result.elapsed_seconds,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            returncode=result.returncode,
+            cancelled=result.cancelled,
+        )
+        save_run(record)
+    except Exception as exc:
+        logger.warning("History kaydedilemedi: %s", exc)
 
     # Sonucu gönder
     elapsed = _format_elapsed(result.elapsed_seconds)
@@ -310,3 +328,44 @@ async def callback_model_set(update: Update, context: ContextTypes.DEFAULT_TYPE)
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
+
+
+# ------------------------------------------------------------------
+# /history [n] — son N tamamlanan çalıştırmayı listele (Faz 5C)
+# ------------------------------------------------------------------
+async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = str(update.effective_chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("🚫 Yetkiniz yok.")
+        return
+
+    n = 10
+    if context.args:
+        try:
+            n = max(1, min(int(context.args[0]), 50))
+        except ValueError:
+            pass
+
+    records = load_history(n)
+
+    if not records:
+        await update.message.reply_text(
+            "📭 Henüz tamamlanmış çalıştırma yok.\n"
+            "Başlamak için: `/run <prompt>`",
+            parse_mode="Markdown",
+        )
+        return
+
+    lines = [f"📋 *Son {len(records)} Çalıştırma*\n"]
+    for i, r in enumerate(records, 1):
+        mins = int(r.elapsed_seconds // 60)
+        secs = int(r.elapsed_seconds % 60)
+        elapsed = f"{mins}dk {secs}s" if mins > 0 else f"{secs}s"
+        prompt_short = r.prompt[:50] + ("…" if len(r.prompt) > 50 else "")
+        lines.append(
+            f"{i}. {r.status_emoji} `{r.started_at}` — {elapsed}\n"
+            f"   📂 {r.project_name}\n"
+            f"   💬 {prompt_short}"
+        )
+
+    await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")

@@ -160,33 +160,28 @@
 > otomatik olarak Telegram'a gönderme.
 
 ### 5A — Çıktı Yakalama
-- [ ] Claude Code çıktısı (stdout) real-time olarak yakalanıyor
-- [ ] Çıktı buffer'lanıyor ve log dosyasına yazılıyor (`~/.irq/logs/`)
-- [ ] Faz tamamlama sinyali tespit ediliyor (çıktı parse)
+- [x] Claude Code çıktısı (stdout) real-time olarak yakalanıyor
+- [x] Çıktı buffer'lanıyor ve log dosyasına yazılıyor (`~/.irq/logs/`)
+- [x] Çalıştırma tamamlanma sinyali tespit ediliyor (returncode + elapsed)
 
 ### 5B — Özet Oluşturma
-- [ ] Claude Code'un son mesajı (faz bitti mesajı) yakalanıyor
-- [ ] Özet formatı belirlendi:
+- [x] Her çalıştırmanın sonucu `RunRecord` olarak kaydediliyor (`~/.irq/history.json`)
+- [x] Özet formatı belirlendi:
   ```
-  ✅ Faz Tamamlandı!
-  
+  ✅ Tamamlandı | ⏱️ 12dk 3s
+
   📂 Proje: project-irq
-  🎯 Faz: 3 — Claude Code Entegrasyonu
-  ⏱️ Süre: 12dk
-  
-  📝 Özet:
-  - claude_runner.py oluşturuldu
-  - /run komutu eklendi
-  - 3 test yazıldı, hepsi geçti
-  
-  📊 ROADMAP İlerlemesi: %45 → %52
+  💬 `<prompt önizleme>`
+
+  📝 Çıktı:
+  <claude çıktısı — ilk 400 karakter>
   ```
-- [ ] ROADMAP.md otomatik güncelleniyor (`[ ]` → `[x]`)
+- [x] Log dosyaları `~/.irq/logs/<tarih>_<proje>.log` formatında kalıcı
 
 ### 5C — Bildirim Gönderme
-- [ ] Telegram mesajı formatlanıp gönderiliyor
-- [ ] Hata durumunda farklı format: ❌ ile birlikte hata detayı
-- [ ] `/history` komutu: son N tamamlanan görevin listesi
+- [x] `/run` tamamlanınca Telegram mesajı formatlanıp gönderiliyor (✅/❌/🚫)
+- [x] Hata durumunda farklı format: ❌ ile birlikte hata detayı
+- [x] `/history [n]` komutu: son N tamamlanan çalıştırmanın listesi
 
 ---
 
@@ -315,8 +310,8 @@
 | v0.1.0 | Faz 0-1 | Mart 2026 | İlk çalışan bot (yerel) |
 | v0.2.0 | Faz 2 | — | Proje registry & yönetim |
 | v0.3.0 | Faz 3 | — | Claude Code entegrasyonu |
-| v0.4.0 | Faz 4 | — | Model kontrolü |
-| v0.5.0 | Faz 5 | — | Faz tamamlama bildirimleri |
+| v0.4.0 | Faz 4 | Mart 2026 | Model kontrolü |
+| v0.5.0 | Faz 5 | Mart 2026 | Çalıştırma geçmişi & bildirimler |
 | v0.6.0 | Faz 6 | — | Watchdog engine |
 | v0.7.0 | Faz 7 | — | Maliyet kontrolü |
 | v1.0.0 | Faz 8 | — | Çok kullanıcı |

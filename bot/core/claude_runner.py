@@ -25,6 +25,7 @@ class RunResult:
     returncode: int = -1
     elapsed_seconds: float = 0.0
     cancelled: bool = False
+    wall_start: float = 0.0   # time.time() — Faz 5 history için
 
     @property
     def ok(self) -> bool:
@@ -86,7 +87,7 @@ class ClaudeRunner:
         logger.debug("Prompt: %s", prompt[:200])
 
         start = time.monotonic()
-        result = RunResult()
+        result = RunResult(wall_start=time.time())
 
         async with self._lock:
             try:

@@ -10,7 +10,7 @@ akıllı geliştirme asistanı.
 
 ## ✨ Özellikler
 
-### ✅ Mevcut (Faz 1–4 + 2D)
+### ✅ Mevcut (Faz 1–5 + 2D)
 - 🤖 Telegram bot — `/start`, `/status`, `/help`, `/ping`
 - 🏠 Mac'te yerel çalışma — sunucu gereksiz, maliyet $0
 - 📂 **Çoklu Proje Yönetimi** — `irq init` ile kayıt, inline butonlarla seçim
@@ -19,9 +19,9 @@ akıllı geliştirme asistanı.
 - 🖥️ **Uzaktan Claude Code** — Telegram'dan prompt gönder, sonucu al (`/run`, `/cancel`)
 - 🔐 **Güvenlik & Kontrol** — admin doğrulama, hassas komut onayı, rate limiting
 - 🔄 **Model Kontrolü** — Sonnet / Opus / Haiku seçimi inline butonlarla (`/model`)
+- 📋 **Çalıştırma Geçmişi** — her `/run` kalıcı loglanır, `/history` ile listele
 
 ### ⏳ Planlanan
-- 📊 **Faz Bildirimleri** — tamamlanan görevlerin otomatik özeti + canlı output
 - 🔍 **Watchdog** — Claude Code log izleme, loop tespiti, `/pause` `/resume`
 - 🏠 **Command Center** — `/menu` ile tek panelden tüm kontrol
 - 💰 **Maliyet Kontrolü** — API harcama takibi, `/budget` `/cost`
@@ -41,7 +41,8 @@ akıllı geliştirme asistanı.
        ▲                   │  ├── Claude Code CLI runner │
        │                   │  ├── Proje registry         │
    Telegram                │  ├── ROADMAP parser         │
-   Kullanıcısı             │  └── Model manager          │
+   Kullanıcısı             │  ├── Model manager          │
+                           │  └── Notifier (history)     │
                            │                             │
                            │  irq CLI (terminal)         │
                            │  └── irq init <path>        │
@@ -118,6 +119,7 @@ Telegram'dan `/where` yazarak başla.
 | `/run <prompt>` | Claude Code'a prompt gönder |
 | `/cancel` | Çalışan komutu iptal et |
 | `/model` | Aktif modeli göster + inline değiştir |
+| `/history [n]` | Son N çalıştırmanın listesi (varsayılan: 10) |
 
 ### Sistem
 | Komut | Açıklama |
