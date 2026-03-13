@@ -117,7 +117,7 @@ def main() -> None:
 
     logger.info("IRQ Watchdog Bot başlatılıyor...")
 
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).concurrent_updates(True).build()
     register_handlers(app)
 
     async def error_handler(update, context):

@@ -19,6 +19,7 @@ from telegram.ext import ContextTypes
 
 from core.claude_runner import runner
 from core.config import LOGS_DIR, ensure_irq_dirs
+from core.cost_tracker import CostTracker  # Faz 7: Maliyet takibi
 from core.log_watcher import LogWatcher
 from core.model_manager import (
     SUPPORTED_MODELS,
@@ -136,6 +137,8 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     """Claude Code'u çalıştır ve sonucu gönder."""
+    import sys
+
     # "Çalışıyor" mesajı gönder
     status_msg = await update.effective_message.reply_text(
         f"⏳ *Claude Code çalışıyor...*\n\n"
@@ -149,6 +152,13 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     log_filename = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{project['name']}.log"
     log_path = LOGS_DIR / log_filename
 
+    # Terminale başlık yazdır — hangi process çalışıyor görünsün
+    print(f"\n{'='*60}", flush=True)
+    print(f"[IRQ] Claude CLI başlatıldı", flush=True)
+    print(f"[IRQ] Proje : {project['name']} ({project['path']})", flush=True)
+    print(f"[IRQ] Prompt: {prompt[:120]}", flush=True)
+    print(f"{'='*60}", flush=True)
+
     # Watchdog callback — bot context'ini taşır
     from handlers.watchdog import create_watchdog_callback
     bot = update.get_bot()
@@ -158,13 +168,52 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     watcher = LogWatcher(log_path=log_path, watchdog_callback=watchdog_cb)
     watcher.start_idle_monitor_task()
 
+    # line_callback: hem terminale yaz hem watcher'a ilet
+    def _line_handler(line: str) -> None:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        watcher.feed(line)
+
+    # Telegram'a periyodik "hala çalışıyor" güncellemesi (her 30 sn)
+    start_time = time.monotonic()
+    _update_task: list[asyncio.Task] = []
+
+    async def _periodic_update() -> None:
+        """30 saniyede bir Telegram mesajını güncelle."""
+        try:
+            while True:
+                await asyncio.sleep(30)
+                elapsed = _format_elapsed(time.monotonic() - start_time)
+                try:
+                    await status_msg.edit_text(
+                        f"⏳ *Claude Code çalışıyor...* ({elapsed})\n\n"
+                        f"📂 Proje: {project['name']}\n"
+                        f"💬 Prompt: `{prompt[:100]}{'...' if len(prompt) > 100 else ''}`\n\n"
+                        f"_/cancel ile iptal edebilirsin_",
+                        parse_mode="Markdown",
+                    )
+                except Exception:
+                    pass  # Mesaj değişmediyse Telegram hata verir, yoksay
+        except asyncio.CancelledError:
+            pass
+
+    _update_task.append(asyncio.create_task(_periodic_update()))
+
     # Claude Code çalıştır (streaming line_callback ile)
     result = await runner.run(
         prompt=prompt,
         project_path=project["path"],
-        line_callback=watcher.feed,
+        line_callback=_line_handler,
     )
+
+    # Cleanup
+    for t in _update_task:
+        t.cancel()
     watcher.stop_idle_monitor()
+
+    print(f"\n{'='*60}", flush=True)
+    print(f"[IRQ] Claude CLI tamamlandı (rc={result.returncode}, {result.elapsed_seconds:.1f}s)", flush=True)
+    print(f"{'='*60}\n", flush=True)
 
     # Faz 5: Çalıştırma geçmişine kaydet
     try:

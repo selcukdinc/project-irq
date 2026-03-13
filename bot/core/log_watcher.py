@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Loop tespit kriterleri
 LOOP_REPEAT_THRESHOLD = 3           # Aynı hata satırı N+ kez tekrarlanırsa
-LOOP_IDLE_SECONDS = 300             # 5 dakika boyunca yeni çıktı yoksa
+LOOP_IDLE_SECONDS = 600             # 10 dakika boyunca yeni çıktı yoksa (git, build gibi sessiz işlemler için)
 LOOP_MAX_BYTES = 10 * 1024 * 1024  # Çıktı 10MB'ı aşarsa
 
 # Callback type: (reason: str) -> Awaitable[None]
@@ -89,7 +89,7 @@ class LoopDetector:
         idle = time.monotonic() - self._last_output_time
         if idle >= LOOP_IDLE_SECONDS:
             self._loop_reason = (
-                f"5 dakika boyunca çıktı gelmedi ({idle:.0f}s sessizlik)"
+                f"10 dakika boyunca çıktı gelmedi ({idle:.0f}s sessizlik)"
             )
             return True
         return False
