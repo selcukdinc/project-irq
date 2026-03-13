@@ -10,6 +10,9 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from core.claude_runner import runner
+from core.config import CLAUDE_MODEL
+
 logger = logging.getLogger(__name__)
 
 ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "")
@@ -34,12 +37,14 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
 
+    claude_status = "🟢 Çalışıyor" if runner.is_running else "⚪ Boşta"
+
     await update.message.reply_text(
         f"📊 *IRQ Watchdog — Durum*\n"
         f"🕐 {now}\n\n"
-        f"*İzlenen Agentlar:*\n"
-        f"   _(Phase 2'de aktif olacak)_\n\n"
-        f"💰 *Günlük Maliyet:* _(Phase 3'te aktif)_\n\n"
+        f"*Claude Code:* {claude_status}\n"
+        f"*Model:* `{CLAUDE_MODEL}`\n\n"
+        f"💰 *Günlük Maliyet:* _(Faz 7'de aktif)_\n\n"
         f"✅ Bot çalışıyor.",
         parse_mode="Markdown",
     )
@@ -57,10 +62,12 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/projects      — kayıtlı projeler\n"
         "/addproject    — yeni proje ekle\n"
         "/removeproject — proje sil\n"
-        "/current       — aktif proje\n\n"
+        "/current       — aktif proje\n"
+        "/roadmap       — faz durumu\n\n"
+        "*Claude Code:*\n"
+        "/run <prompt>  — Claude Code'a prompt gönder\n"
+        "/cancel        — çalışan komutu iptal et\n\n"
         "*Yakında:*\n"
-        "/roadmap  — faz durumu\n"
-        "/run      — Claude Code'a prompt gönder\n"
         "/model    — model bilgisi / değiştir",
         parse_mode="Markdown",
     )

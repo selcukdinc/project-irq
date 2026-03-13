@@ -93,25 +93,25 @@
 > sonuçları geri almak. Her şey Mac'te, aynı process'te.
 
 ### 3A — Claude Code CLI Runner
-- [ ] Claude Code CLI komut yapısı belirlendi:
-  - `claude --model <model> --project <path> --prompt "<prompt>"`
-  - Antigravity context'i ile çalışma şekli doğrulandı
-- [ ] `bot/core/claude_runner.py` yazıldı:
+- [x] Claude Code CLI komut yapısı belirlendi:
+  - `claude -p "<prompt>" --model <model> --add-dir <path>`
+  - Non-interactive mode (`-p` flag) ile çalışma doğrulandı
+- [x] `bot/core/claude_runner.py` yazıldı:
   - CLI'ı `asyncio.create_subprocess_exec` ile çalıştır
   - stdout/stderr'ı async yakala
   - Timeout ve hata yönetimi
-- [ ] Telegram'dan `/run <prompt>` komutu:
+- [x] Telegram'dan `/run <prompt>` komutu:
   - Aktif projeye Claude Code prompt'u gönder
   - "⏳ Çalışıyor..." mesajı göster
   - Tamamlanınca sonucu gönder
-- [ ] Uzun çalışan işlemler için ilerleme bildirimi (mesaj güncelleme)
+- [x] Uzun çalışan işlemler için ilerleme bildirimi (mesaj güncelleme)
 
 ### 3B — Güvenlik & Kontrol
-- [ ] Sadece `ADMIN_CHAT_ID`'den gelen komutlar kabul edilir
-- [ ] Hassas komutlar için onay mekanizması (inline butonlarla Evet/Hayır)
-- [ ] Rate limiting: dakikada max 5 Claude Code komutu
-- [ ] Çalışan komutu iptal etme: `/cancel` komutu
-- [ ] Eşzamanlı çalışma koruması: aynı anda sadece 1 prompt
+- [x] Sadece `ADMIN_CHAT_ID`'den gelen komutlar kabul edilir
+- [x] Hassas komutlar için onay mekanizması (inline butonlarla Evet/Hayır)
+- [x] Rate limiting: dakikada max 5 Claude Code komutu
+- [x] Çalışan komutu iptal etme: `/cancel` komutu
+- [x] Eşzamanlı çalışma koruması: aynı anda sadece 1 prompt
 
 ---
 

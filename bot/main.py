@@ -26,6 +26,7 @@ from handlers.projects import (
     cmd_removeproject,
     cmd_roadmap,
 )
+from handlers.claude_cmds import callback_run_confirm, cmd_cancel, cmd_run
 
 # -------------------------------------------------------------
 # Logging
@@ -60,6 +61,11 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("roadmap",  cmd_roadmap))
     app.add_handler(CommandHandler("phase",    cmd_phase))
     app.add_handler(CallbackQueryHandler(callback_phase_detail, pattern=r"^phase_detail:"))
+
+    # Faz 3A-3B — Claude Code entegrasyonu
+    app.add_handler(CommandHandler("run",    cmd_run))
+    app.add_handler(CommandHandler("cancel", cmd_cancel))
+    app.add_handler(CallbackQueryHandler(callback_run_confirm, pattern=r"^run_confirm:"))
 
 
 # -------------------------------------------------------------
