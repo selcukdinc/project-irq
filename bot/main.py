@@ -19,6 +19,8 @@ from handlers.commands import cmd_start, cmd_status, cmd_help, cmd_ping
 from handlers.projects import (
     callback_phase_detail,
     callback_select_project,
+    callback_where_back,
+    callback_where_phase,
     cmd_addproject,
     cmd_current,
     cmd_overview,
@@ -67,6 +69,9 @@ def register_handlers(app: Application) -> None:
     # Faz 2D — Bağlam komutları
     app.add_handler(CommandHandler("where",    cmd_where))
     app.add_handler(CommandHandler("overview", cmd_overview))
+    app.add_handler(CallbackQueryHandler(callback_where_phase, pattern=r"^where_phase:"))
+    app.add_handler(CallbackQueryHandler(callback_where_back,  pattern=r"^where_back$"))
+    app.add_handler(CallbackQueryHandler(callback_select_project, pattern=r"^where_projects$"))
 
     # Faz 3A-3B — Claude Code entegrasyonu
     app.add_handler(CommandHandler("run",    cmd_run))

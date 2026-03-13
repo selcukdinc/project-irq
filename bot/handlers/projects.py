@@ -252,42 +252,36 @@ async def cmd_phase(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # ------------------------------------------------------------------
 # /where — aktif proje + mevcut faz + sıradaki adım (hızlı bağlam)
 # ------------------------------------------------------------------
-async def cmd_where(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    from pathlib import Path as _Path
 
+def _build_where_content() -> tuple[str, InlineKeyboardMarkup] | tuple[str, None]:
+    """
+    /where ekranı için (text, markup) döndürür.
+    Hata durumunda (hata_mesajı, None) döner.
+    """
     project = get_active_project()
     if not project:
-        await update.message.reply_text(
+        return (
             "📂 Aktif proje yok.\n\n"
             "Terminalde projenin dizininde şunu çalıştır:\n"
             "`python bot/cli.py init`",
-            parse_mode="Markdown",
+            None,
         )
-        return
 
     rp = _roadmap_path_for(project)
     if not rp:
-        await update.message.reply_text(
-            f"❌ ROADMAP.md bulunamadı: `{project['path']}/ROADMAP.md`",
-            parse_mode="Markdown",
-        )
-        return
+        return f"❌ ROADMAP.md bulunamadı: `{project['path']}/ROADMAP.md`", None
 
     phases = parse_roadmap(rp)
     if not phases:
-        await update.message.reply_text("❌ ROADMAP parse edilemedi.")
-        return
+        return "❌ ROADMAP parse edilemedi.", None
 
     completed_steps, total_steps, pct = overall_progress(phases)
     total_phases = len(phases)
 
-    # Mevcut faz = ilk tamamlanmamış faz (adımı olan)
     current_phase = next(
         (p for p in phases if p.total > 0 and p.progress < 100),
         phases[-1],
     )
-
-    # Sıradaki tamamlanmamış adım
     next_step = next((s.text for s in current_phase.steps if not s.done), None)
 
     bar = _progress_bar(pct)
@@ -300,15 +294,19 @@ async def cmd_where(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if next_step:
         lines += ["", "⏭ *Sıradaki adım:*", f"⬜ {next_step[:120]}"]
 
-    buttons = [[
-        InlineKeyboardButton("📊 Roadmap", callback_data=f"phase_detail:{current_phase.number}"),
+    markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton("📊 Roadmap", callback_data=f"where_phase:{current_phase.number}"),
         InlineKeyboardButton("📂 Projeler", callback_data="where_projects"),
-    ]]
+    ]])
+    return "\n".join(lines), markup
 
+
+async def cmd_where(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text, markup = _build_where_content()
     await update.message.reply_text(
-        "\n".join(lines),
+        text,
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(buttons),
+        reply_markup=markup,
     )
 
 
@@ -392,4 +390,52 @@ async def callback_phase_detail(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(
         format_phase_detail(phase),
         parse_mode="Markdown",
+    )
+
+
+# ------------------------------------------------------------------
+# Inline callback — /where'den faz detayı (← Geri butonu ile)
+# ------------------------------------------------------------------
+async def callback_where_phase(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    project = get_active_project()
+    if not project:
+        await query.edit_message_text("❌ Aktif proje yok.")
+        return
+
+    phase_no = int(query.data.split(":", 1)[1])
+    rp = _roadmap_path_for(project)
+    if not rp:
+        await query.edit_message_text("❌ ROADMAP dosyası bulunamadı.")
+        return
+
+    phase = get_phase(rp, phase_no)
+    if not phase:
+        await query.edit_message_text(f"❌ Faz {phase_no} bulunamadı.")
+        return
+
+    back_markup = InlineKeyboardMarkup([[
+        InlineKeyboardButton("← /where", callback_data="where_back"),
+    ]])
+    await query.edit_message_text(
+        format_phase_detail(phase),
+        parse_mode="Markdown",
+        reply_markup=back_markup,
+    )
+
+
+# ------------------------------------------------------------------
+# Inline callback — /where ekranına geri dön
+# ------------------------------------------------------------------
+async def callback_where_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    text, markup = _build_where_content()
+    await query.edit_message_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=markup,
     )
