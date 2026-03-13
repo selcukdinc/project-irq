@@ -51,7 +51,7 @@
 > ROADMAP bazlı faz ilerlemesini takip edebilme.
 
 ### 2A — Proje Registry
-- [ ] `~/.irq/projects.json` konfigürasyon formatı tasarlandı:
+- [x] `~/.irq/projects.json` konfigürasyon formatı tasarlandı:
   ```json
   {
     "projects": [
@@ -65,10 +65,10 @@
     ]
   }
   ```
-- [ ] `bot/core/project_registry.py` yazıldı — proje CRUD işlemleri
-- [ ] Telegram'dan `/projects` komutu: kayıtlı projeleri inline butonlarla listele
-- [ ] Telegram'dan `/addproject <isim> <path>` komutu: yeni proje kaydet
-- [ ] Telegram'dan `/removeproject <id>` komutu: proje sil
+- [x] `bot/core/project_registry.py` yazıldı — proje CRUD işlemleri
+- [x] Telegram'dan `/projects` komutu: kayıtlı projeleri inline butonlarla listele
+- [x] Telegram'dan `/addproject <isim> <path>` komutu: yeni proje kaydet
+- [x] Telegram'dan `/removeproject <id>` komutu: proje sil
 
 ### 2B — ROADMAP Parser
 - [ ] `bot/core/roadmap_parser.py` yazıldı:

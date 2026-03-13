@@ -48,18 +48,20 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "📖 *IRQ Bot — Komut Listesi*\n\n"
-        "*Mevcut (Phase 1):*\n"
+        "*Genel:*\n"
         "/start    — başlat, Chat ID öğren\n"
         "/status   — sistem durumu\n"
         "/ping     — bot çalışıyor mu?\n"
         "/help     — bu mesaj\n\n"
-        "*Yakında (Phase 2):*\n"
-        "/pause    — agent'ı durdur\n"
-        "/resume   — devam et\n"
-        "/skip     — adımı atla\n\n"
-        "*Yakında (Phase 3):*\n"
-        "/budget   — maliyet limiti ayarla\n"
-        "/cost     — harcama özeti",
+        "*Proje Yönetimi:*\n"
+        "/projects      — kayıtlı projeler\n"
+        "/addproject    — yeni proje ekle\n"
+        "/removeproject — proje sil\n"
+        "/current       — aktif proje\n\n"
+        "*Yakında:*\n"
+        "/roadmap  — faz durumu\n"
+        "/run      — Claude Code'a prompt gönder\n"
+        "/model    — model bilgisi / değiştir",
         parse_mode="Markdown",
     )
 

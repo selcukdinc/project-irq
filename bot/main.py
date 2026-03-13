@@ -13,9 +13,16 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path)
 
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from handlers.commands import cmd_start, cmd_status, cmd_help, cmd_ping
+from handlers.projects import (
+    callback_select_project,
+    cmd_addproject,
+    cmd_current,
+    cmd_projects,
+    cmd_removeproject,
+)
 
 # -------------------------------------------------------------
 # Logging
@@ -33,10 +40,18 @@ logger = logging.getLogger(__name__)
 # Handler kaydı
 # -------------------------------------------------------------
 def register_handlers(app: Application) -> None:
+    # Faz 1
     app.add_handler(CommandHandler("start",  cmd_start))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("help",   cmd_help))
     app.add_handler(CommandHandler("ping",   cmd_ping))
+
+    # Faz 2A — Proje yönetimi
+    app.add_handler(CommandHandler("projects",      cmd_projects))
+    app.add_handler(CommandHandler("addproject",     cmd_addproject))
+    app.add_handler(CommandHandler("removeproject",  cmd_removeproject))
+    app.add_handler(CommandHandler("current",        cmd_current))
+    app.add_handler(CallbackQueryHandler(callback_select_project, pattern=r"^sel_proj:"))
 
 
 # -------------------------------------------------------------
