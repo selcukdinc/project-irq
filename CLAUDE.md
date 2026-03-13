@@ -167,7 +167,7 @@ Güncel durum için `ROADMAP.md`'ye bak.
 |-----|--------|-------|
 | 0 | Proje Altyapısı | ✅ Tamamlandı |
 | 1 | Minimal Telegram Bot | ✅ Tamamlandı |
-| 2 | Proje Registry & Yönetim | ⏳ Bekliyor |
+| 2 | Proje Registry & Yönetim | ✅ Tamamlandı |
 | 3 | Claude Code Entegrasyonu | ⏳ Bekliyor |
 | 4 | Model Kontrolü | ⏳ Bekliyor |
 | 5 | Faz Tamamlama Bildirimleri | ⏳ Bekliyor |

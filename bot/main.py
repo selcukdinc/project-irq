@@ -17,11 +17,14 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from handlers.commands import cmd_start, cmd_status, cmd_help, cmd_ping
 from handlers.projects import (
+    callback_phase_detail,
     callback_select_project,
     cmd_addproject,
     cmd_current,
+    cmd_phase,
     cmd_projects,
     cmd_removeproject,
+    cmd_roadmap,
 )
 
 # -------------------------------------------------------------
@@ -52,6 +55,11 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("removeproject",  cmd_removeproject))
     app.add_handler(CommandHandler("current",        cmd_current))
     app.add_handler(CallbackQueryHandler(callback_select_project, pattern=r"^sel_proj:"))
+
+    # Faz 2B — ROADMAP & faz yönetimi
+    app.add_handler(CommandHandler("roadmap",  cmd_roadmap))
+    app.add_handler(CommandHandler("phase",    cmd_phase))
+    app.add_handler(CallbackQueryHandler(callback_phase_detail, pattern=r"^phase_detail:"))
 
 
 # -------------------------------------------------------------

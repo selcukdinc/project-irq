@@ -71,19 +71,19 @@
 - [x] Telegram'dan `/removeproject <id>` komutu: proje sil
 
 ### 2B — ROADMAP Parser
-- [ ] `bot/core/roadmap_parser.py` yazıldı:
+- [x] `bot/core/roadmap_parser.py` yazıldı:
   - Markdown ROADMAP.md'yi parse et
   - Faz isimlerini, adımları ve `[ ]`/`[x]` durumlarını çıkar
   - İlerleme yüzdesini hesapla
-- [ ] Telegram'dan `/roadmap` komutu: seçili projenin faz durumunu göster
-- [ ] Her faz için inline butonlar: `📊 Detay`, `▶️ İlerlet`
-- [ ] `/phase <faz_no>` komutu: belirli fazın detaylarını göster
+- [x] Telegram'dan `/roadmap` komutu: seçili projenin faz durumunu göster
+- [x] Her faz için inline butonlar: `📊 Detay`, `▶️ İlerlet`
+- [x] `/phase <faz_no>` komutu: belirli fazın detaylarını göster
 
 ### 2C — Proje Seçim Akışı
-- [ ] Telegram inline butonlarla proje seçim menüsü
-- [ ] Seçili proje oturumda aktif olarak tutulur (conversation state)
-- [ ] `/current` komutu: şu an hangi proje aktif göster
-- [ ] Her komut çalışmadan önce aktif proje kontrolü yapılır
+- [x] Telegram inline butonlarla proje seçim menüsü
+- [x] Seçili proje oturumda aktif olarak tutulur (conversation state)
+- [x] `/current` komutu: şu an hangi proje aktif göster
+- [x] Her komut çalışmadan önce aktif proje kontrolü yapılır
 
 ---
 
