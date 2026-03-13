@@ -21,10 +21,12 @@ from handlers.projects import (
     callback_select_project,
     cmd_addproject,
     cmd_current,
+    cmd_overview,
     cmd_phase,
     cmd_projects,
     cmd_removeproject,
     cmd_roadmap,
+    cmd_where,
 )
 from handlers.claude_cmds import callback_model_set, callback_run_confirm, cmd_cancel, cmd_model, cmd_run
 
@@ -61,6 +63,10 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("roadmap",  cmd_roadmap))
     app.add_handler(CommandHandler("phase",    cmd_phase))
     app.add_handler(CallbackQueryHandler(callback_phase_detail, pattern=r"^phase_detail:"))
+
+    # Faz 2D — Bağlam komutları
+    app.add_handler(CommandHandler("where",    cmd_where))
+    app.add_handler(CommandHandler("overview", cmd_overview))
 
     # Faz 3A-3B — Claude Code entegrasyonu
     app.add_handler(CommandHandler("run",    cmd_run))

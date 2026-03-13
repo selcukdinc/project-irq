@@ -21,7 +21,9 @@ from core.roadmap_parser import (
     format_phase_detail,
     format_roadmap_summary,
     get_phase,
+    overall_progress,
     parse_roadmap,
+    _progress_bar,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,23 @@ async def cmd_projects(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def callback_select_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+
+    # /where'deki "📂 Projeler" butonu
+    if query.data == "where_projects":
+        projects = list_projects()
+        buttons = [
+            [InlineKeyboardButton(
+                f"{'✅ ' if p.get('active') else '📁 '}{p['name']}",
+                callback_data=f"sel_proj:{p['id']}",
+            )]
+            for p in projects
+        ]
+        await query.edit_message_text(
+            "📂 *Kayıtlı Projeler*\nAktif projeyi değiştirmek için seç:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+        return
 
     project_id = query.data.split(":", 1)[1]
     project = set_active_project(project_id)
@@ -227,6 +246,123 @@ async def cmd_phase(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         format_phase_detail(phase),
         parse_mode="Markdown",
+    )
+
+
+# ------------------------------------------------------------------
+# /where — aktif proje + mevcut faz + sıradaki adım (hızlı bağlam)
+# ------------------------------------------------------------------
+async def cmd_where(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from pathlib import Path as _Path
+
+    project = get_active_project()
+    if not project:
+        await update.message.reply_text(
+            "📂 Aktif proje yok.\n\n"
+            "Terminalde projenin dizininde şunu çalıştır:\n"
+            "`python bot/cli.py init`",
+            parse_mode="Markdown",
+        )
+        return
+
+    rp = _roadmap_path_for(project)
+    if not rp:
+        await update.message.reply_text(
+            f"❌ ROADMAP.md bulunamadı: `{project['path']}/ROADMAP.md`",
+            parse_mode="Markdown",
+        )
+        return
+
+    phases = parse_roadmap(rp)
+    if not phases:
+        await update.message.reply_text("❌ ROADMAP parse edilemedi.")
+        return
+
+    completed_steps, total_steps, pct = overall_progress(phases)
+    total_phases = len(phases)
+
+    # Mevcut faz = ilk tamamlanmamış faz (adımı olan)
+    current_phase = next(
+        (p for p in phases if p.total > 0 and p.progress < 100),
+        phases[-1],
+    )
+
+    # Sıradaki tamamlanmamış adım
+    next_step = next((s.text for s in current_phase.steps if not s.done), None)
+
+    bar = _progress_bar(pct)
+    lines = [
+        f"📂 *{project['name']}*",
+        "",
+        f"🗺 `{bar}` %{pct:.0f}  ({completed_steps}/{total_steps} adım)",
+        f"📍 Faz {current_phase.number}/{total_phases} — {current_phase.title}",
+    ]
+    if next_step:
+        lines += ["", "⏭ *Sıradaki adım:*", f"⬜ {next_step[:120]}"]
+
+    buttons = [[
+        InlineKeyboardButton("📊 Roadmap", callback_data=f"phase_detail:{current_phase.number}"),
+        InlineKeyboardButton("📂 Projeler", callback_data="where_projects"),
+    ]]
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+# ------------------------------------------------------------------
+# /overview — tüm projelerin özet durumu tek mesajda
+# ------------------------------------------------------------------
+async def cmd_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from pathlib import Path as _Path
+
+    projects = list_projects()
+    if not projects:
+        await update.message.reply_text(
+            "📂 Kayıtlı proje yok.\n\n"
+            "Terminalde projenin dizininde şunu çalıştır:\n"
+            "`python bot/cli.py init`",
+            parse_mode="Markdown",
+        )
+        return
+
+    lines = ["📊 *Proje Genel Durumu*\n"]
+
+    for p in projects:
+        active_mark = " ✅" if p.get("active") else ""
+        rp_path = _Path(p["path"]) / p.get("roadmap_path", "ROADMAP.md")
+
+        if rp_path.is_file():
+            phases = parse_roadmap(str(rp_path))
+            completed, total, pct = overall_progress(phases)
+            bar = _progress_bar(pct, length=8)
+            current = next(
+                (ph for ph in phases if ph.total > 0 and ph.progress < 100), None
+            )
+            phase_label = f"Faz {current.number}/{len(phases)}" if current else "✅ Tamamlandı"
+            lines.append(f"*{p['name']}*{active_mark}")
+            lines.append(f"  `{bar}` %{pct:.0f}  —  {phase_label}")
+        else:
+            lines.append(f"*{p['name']}*{active_mark}")
+            lines.append("  ⚠️ ROADMAP bulunamadı")
+
+        lines.append("")
+
+    # Inline butonlarla proje geçişi
+    buttons = [
+        [InlineKeyboardButton(
+            f"{'✅ ' if p.get('active') else ''}{p['name']}",
+            callback_data=f"sel_proj:{p['id']}",
+        )]
+        for p in projects
+    ]
+
+    await update.message.reply_text(
+        "\n".join(lines).rstrip(),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(buttons),
     )
 
 

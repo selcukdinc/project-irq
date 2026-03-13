@@ -85,6 +85,27 @@
 - [x] `/current` komutu: şu an hangi proje aktif göster
 - [x] Her komut çalışmadan önce aktif proje kontrolü yapılır
 
+### 2D — CLI Onboarding & Bağlam Komutları
+
+> Hedef: Kullanıcı bilgisayar başındayken projeyi terminalde bir komutla sisteme kaydeder,
+> sonrasında her şey Telegram üzerinden uzaktan yönetilir.
+>
+> **Kurulum / Uzaktan Kontrol ayrımı:**
+> - `irq init` → terminalde, bir kere, bilgisayar başında
+> - `/where`, `/overview` → Telegram'dan, her zaman, her yerden
+
+- [x] `bot/cli.py` yazıldı — `irq init [path]` terminal komutu:
+  - Mevcut dizini otomatik algılar (argümansız kullanım)
+  - ROADMAP.md varlığını kontrol eder
+  - `~/.irq/projects.json`'a ekler, aktif proje olarak ayarlar
+  - Zaten kayıtlıysa aktif olarak işaretler
+- [x] Aktif proje kalıcılığı: `active` flag `projects.json`'da saklandığı için
+  bot yeniden başlayınca da korunuyor (zaten doğru çalışıyor)
+- [x] `/where` komutu: hızlı bağlam özeti
+  - Aktif proje adı, genel ilerleme çubuğu, mevcut faz, sıradaki adım
+- [x] `/overview` komutu: tüm kayıtlı projelerin tek mesajda özeti
+  - Her proje için ilerleme çubuğu + mevcut faz + inline proje seçim butonları
+
 ---
 
 ## Faz 3 — Claude Code Entegrasyonu
