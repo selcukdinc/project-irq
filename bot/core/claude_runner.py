@@ -2,6 +2,7 @@
 Project IRQ — Claude Code CLI Runner
 Faz 3A: Claude Code CLI'ı async subprocess ile çalıştırır.
 Faz 6A: Streaming line-by-line output + pause/resume desteği.
+Faz 7: Maliyet takibi ve limit kontrolü.
 """
 
 from __future__ import annotations
@@ -11,10 +12,12 @@ import logging
 import signal
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Optional
 
 from .config import CLAUDE_TIMEOUT
 from .model_manager import get_current_model
+from .cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,11 @@ class ClaudeRunner:
         self._process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
         self._paused = False
+
+        # Faz 7: Maliyet takibi
+        config_dir = Path.home() / ".irq"
+        config_dir.mkdir(exist_ok=True)
+        self._cost_tracker = CostTracker(config_dir)
 
     @property
     def is_running(self) -> bool:
@@ -95,6 +103,7 @@ class ClaudeRunner:
             "-p", prompt,
             "--model", model,
             "--add-dir", project_path,
+            "--verbose",  # Faz 7: Maliyet bilgisi için verbose output
         ]
 
         logger.info("Claude CLI çalıştırılıyor: model=%s, path=%s", model, project_path)
@@ -146,6 +155,32 @@ class ClaudeRunner:
             "Claude CLI tamamlandı: %s (%.1fs, rc=%d)",
             status, result.elapsed_seconds, result.returncode,
         )
+
+        # Faz 7: Maliyet takibi
+        try:
+            # Proje adını path'den çıkar
+            project_name = Path(project_path).name
+
+            # Sadece başarılı çalıştırmaları kaydet (maliyet oluşanları)
+            if result.ok or (result.returncode != 127):  # CLI bulunamadı hatası değilse
+                cost_entry = self._cost_tracker.record_usage(
+                    project=project_name,
+                    prompt=prompt,
+                    model=model,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    duration_seconds=result.elapsed_seconds
+                )
+
+                logger.debug(f"Maliyet kaydedildi: ${cost_entry.cost_usd:.4f}")
+
+                # Günlük limit kontrolü
+                if self._cost_tracker.check_daily_limit_exceeded():
+                    logger.warning("⚠️ Günlük maliyet limiti aşıldı!")
+
+        except Exception as exc:
+            logger.error("Maliyet takip hatası: %s", exc)
+
         return result
 
     async def _read_streams(

@@ -235,13 +235,14 @@
 
 > Hedef: Claude Code API maliyetlerini takip et, limiti aşınca uyar.
 
-- [ ] Maliyet takip yöntemi kararlaştırıldı:
-  - Option A: Claude Code CLI çıktısından token/maliyet parse
-  - Option B: Claude API yanıtlarından log dosyası
-- [ ] `bot/core/cost_tracker.py` yazıldı
-- [ ] `COST_LIMIT_USD` env değişkeni aktif, aşılınca uyarı gidiyor
-- [ ] `/budget` komutu: günlük limit göster / değiştir
-- [ ] `/cost` komutu: o güne ait harcama özeti
+- [x] Maliyet takip yöntemi kararlaştırıldı:
+  - Option A seçildi: Claude Code CLI çıktısından token/maliyet parse
+  - `--verbose` flag ile Claude CLI'dan detaylı çıktı alınıyor
+  - Model bazlı maliyet hesaplaması token sayısına göre yapılıyor
+- [x] `bot/core/cost_tracker.py` yazıldı
+- [x] Claude CLI runner'a maliyet takibi entegrasyonu yapıldı
+- [x] `/budget` komutu: günlük limit göster / değiştir
+- [x] `/cost` komutu: son N günün harcama özeti
 - [ ] Günlük maliyet raporu otomatik gönderiliyor
 - [ ] Limit aşılınca Claude Code otomatik durdurulur, onay beklenir
 

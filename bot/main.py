@@ -41,6 +41,12 @@ from handlers.claude_cmds import (
     cmd_run,
 )
 from handlers.watchdog import callback_watchdog, cmd_kill, cmd_pause, cmd_resume
+from handlers.cost_cmds import (
+    callback_budget_set,
+    callback_cost_view,
+    cmd_budget,
+    cmd_cost,
+)
 
 # -------------------------------------------------------------
 # Logging
@@ -104,6 +110,12 @@ def register_handlers(app: Application) -> None:
     # Faz 6D — /menu Command Center
     app.add_handler(CommandHandler("menu", cmd_menu))
     app.add_handler(CallbackQueryHandler(callback_menu, pattern=r"^menu_"))
+
+    # Faz 7 — Maliyet kontrolü
+    app.add_handler(CommandHandler("budget", cmd_budget))
+    app.add_handler(CommandHandler("cost", cmd_cost))
+    app.add_handler(CallbackQueryHandler(callback_budget_set, pattern=r"^budget_set:"))
+    app.add_handler(CallbackQueryHandler(callback_cost_view, pattern=r"^cost_view:"))
 
 
 # -------------------------------------------------------------
