@@ -10,17 +10,20 @@ akıllı geliştirme asistanı.
 
 ## ✨ Özellikler
 
-### Mevcut (Faz 1)
+### ✅ Mevcut (Faz 1–4)
 - 🤖 Telegram bot — `/start`, `/status`, `/help`, `/ping`
 - 🏠 Mac'te yerel çalışma — sunucu gereksiz, maliyet $0
+- 📂 **Çoklu Proje Yönetimi** — Telegram'dan proje seçimi, ROADMAP takibi (`/projects`, `/addproject`, `/roadmap`, `/phase`, `/current`)
+- 🖥️ **Uzaktan Claude Code** — Telegram'dan prompt gönder, sonucu al (`/run`, `/cancel`)
+- 🔐 **Güvenlik & Kontrol** — admin doğrulama, hassas komut onayı, rate limiting
+- 🔄 **Model Kontrolü** — Claude Code modelini Telegram'dan görme/değiştirme (`/model`)
 
-### Planlanan
-- 📂 **Çoklu Proje Yönetimi** — Telegram'dan proje seçimi, ROADMAP takibi
-- 🖥️ **Uzaktan Claude Code** — Telegram'dan prompt gönder, Claude Code çalıştırsın
-- 🔄 **Model Kontrolü** — Claude Code modelini Telegram'dan görme/değiştirme
+### ⏳ Planlanan
 - 📊 **Faz Bildirimleri** — tamamlanan görevlerin otomatik özet raporu
-- 🔍 **Watchdog** — Claude Code log izleme, loop tespiti
-- 💰 **Maliyet Kontrolü** — API harcama takibi ve limit
+- 🔍 **Watchdog** — Claude Code log izleme, loop tespiti, `/pause` `/resume`
+- 💰 **Maliyet Kontrolü** — API harcama takibi ve limit, `/budget` `/cost`
+- 👥 **Çok Kullanıcı** — SQLite, kullanıcı bazlı izolasyon
+- 📱 **Flutter Mobil** — IRQ Admin uygulaması
 
 ---
 
@@ -87,10 +90,16 @@ python bot/main.py
 | `/status` | Sistem durumu |
 | `/help` | Komut listesi |
 | `/ping` | Bot canlı mı kontrolü |
-| `/projects` | Proje listesi *(Faz 2)* |
-| `/roadmap` | Faz ilerleme durumu *(Faz 2)* |
-| `/run <prompt>` | Claude Code'a prompt gönder *(Faz 3)* |
-| `/model` | Model bilgisi/değiştir *(Faz 4)* |
+| `/projects` | Proje listesi (inline seçim) |
+| `/addproject <isim> <path>` | Yeni proje kaydet |
+| `/removeproject <id>` | Proje sil |
+| `/current` | Aktif proje göster |
+| `/roadmap` | Faz ilerleme durumu |
+| `/phase <no>` | Belirli faz detayı |
+| `/run <prompt>` | Claude Code'a prompt gönder |
+| `/cancel` | Çalışan komutu iptal et |
+| `/model` | Aktif modeli göster + inline seçim |
+| `/model <model_adı>` | Modeli değiştir |
 
 ---
 

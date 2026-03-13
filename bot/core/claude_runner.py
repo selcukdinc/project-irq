@@ -11,7 +11,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .config import CLAUDE_MODEL, CLAUDE_TIMEOUT
+from .config import CLAUDE_TIMEOUT
+from .model_manager import get_current_model
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class ClaudeRunner:
                 returncode=1,
             )
 
-        model = model or CLAUDE_MODEL
+        model = model or get_current_model()
         timeout = timeout or CLAUDE_TIMEOUT
 
         cmd = [

@@ -26,7 +26,7 @@ from handlers.projects import (
     cmd_removeproject,
     cmd_roadmap,
 )
-from handlers.claude_cmds import callback_run_confirm, cmd_cancel, cmd_run
+from handlers.claude_cmds import callback_model_set, callback_run_confirm, cmd_cancel, cmd_model, cmd_run
 
 # -------------------------------------------------------------
 # Logging
@@ -66,6 +66,10 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("run",    cmd_run))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CallbackQueryHandler(callback_run_confirm, pattern=r"^run_confirm:"))
+
+    # Faz 4 — Model kontrolü
+    app.add_handler(CommandHandler("model", cmd_model))
+    app.add_handler(CallbackQueryHandler(callback_model_set, pattern=r"^model_set:"))
 
 
 # -------------------------------------------------------------

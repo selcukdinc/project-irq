@@ -120,16 +120,16 @@
 > Hedef: Telegram'dan Claude Code'un hangi modeli kullandığını görebilme
 > ve değiştirebilme.
 
-- [ ] Claude Code desteklenen modeller listesi alınıyor
+- [x] Claude Code desteklenen modeller listesi alınıyor
   - claude-sonnet-4-20250514
   - claude-opus-4-20250514
-  - claude-3.5-haiku
+  - claude-haiku-4-5-20251001
   - (ve diğer güncel modeller)
-- [ ] `/model` komutu: şu an aktif modeli göster
-- [ ] `/model <model_adı>` komutu: modeli değiştir
-- [ ] Model değişikliği inline butonlarla (liste halinde seçim)
-- [ ] Model bilgisi `~/.irq/config.json`'da saklanır
-- [ ] Model limitleri ve maliyetleri hakkında bilgi gösterme
+- [x] `/model` komutu: şu an aktif modeli göster
+- [x] `/model <model_adı>` komutu: modeli değiştir
+- [x] Model değişikliği inline butonlarla (liste halinde seçim)
+- [x] Model bilgisi `~/.irq/config.json`'da saklanır
+- [x] Model limitleri ve maliyetleri hakkında bilgi gösterme
 
 ---
 

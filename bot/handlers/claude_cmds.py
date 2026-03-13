@@ -14,6 +14,13 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from core.claude_runner import runner
+from core.model_manager import (
+    SUPPORTED_MODELS,
+    get_current_model,
+    model_info_text,
+    resolve_model,
+    set_model,
+)
 from core.project_registry import get_active_project
 
 logger = logging.getLogger(__name__)
@@ -205,3 +212,101 @@ async def callback_run_confirm(update: Update, context: ContextTypes.DEFAULT_TYP
         await _execute_run(update, pending["prompt"], pending["project"])
     else:
         await query.edit_message_text("❌ İptal edildi.")
+
+
+# ------------------------------------------------------------------
+# /model [model_adı] — model göster veya değiştir
+# ------------------------------------------------------------------
+async def cmd_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = str(update.effective_chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("🚫 Yetkiniz yok.")
+        return
+
+    current = get_current_model()
+
+    # Argümansız: mevcut modeli göster + inline buton listesi
+    if not context.args:
+        lines = [f"🤖 *Mevcut Model:* `{current}`\n", "📋 *Kullanılabilir Modeller:*"]
+        for mid, desc in SUPPORTED_MODELS.items():
+            marker = "✅" if mid == current else "  "
+            lines.append(f"{marker} `{mid}`\n    _{desc}_")
+
+        buttons = [
+            [InlineKeyboardButton(f"{'✅ ' if mid == current else ''}{desc.split('—')[0].strip()}", callback_data=f"model_set:{mid}")]
+            for mid, desc in SUPPORTED_MODELS.items()
+        ]
+
+        await update.message.reply_text(
+            "\n".join(lines),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+        return
+
+    # Argümanla: modeli değiştir
+    name = context.args[0].strip()
+    resolved = resolve_model(name)
+    if not resolved:
+        valid = ", ".join(f"`{m}`" for m in SUPPORTED_MODELS)
+        await update.message.reply_text(
+            f"❌ Geçersiz model: `{name}`\n\nGeçerli modeller:\n{valid}",
+            parse_mode="Markdown",
+        )
+        return
+
+    if resolved == current:
+        await update.message.reply_text(
+            f"ℹ️ Zaten bu model kullanılıyor: `{resolved}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    set_model(resolved)
+    await update.message.reply_text(
+        f"✅ Model değiştirildi!\n\n"
+        f"🤖 `{resolved}`\n"
+        f"_{model_info_text(resolved)}_",
+        parse_mode="Markdown",
+    )
+
+
+# ------------------------------------------------------------------
+# Inline callback — model seçim butonu
+# ------------------------------------------------------------------
+async def callback_model_set(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = str(query.message.chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await query.answer("🚫 Yetkiniz yok.", show_alert=True)
+        return
+
+    model_id = query.data.split(":", 1)[1]
+    current = get_current_model()
+
+    if model_id == current:
+        await query.answer(f"Zaten bu model seçili: {model_id}", show_alert=False)
+        return
+
+    if not set_model(model_id):
+        await query.edit_message_text("❌ Model değiştirilemedi. Geçersiz model ID.")
+        return
+
+    # Mesajı güncelle — yeni durumu yansıt
+    lines = [f"🤖 *Aktif Model:* `{model_id}`\n", "📋 *Kullanılabilir Modeller:*"]
+    for mid, desc in SUPPORTED_MODELS.items():
+        marker = "✅" if mid == model_id else "  "
+        lines.append(f"{marker} `{mid}`\n    _{desc}_")
+
+    buttons = [
+        [InlineKeyboardButton(f"{'✅ ' if mid == model_id else ''}{desc.split('—')[0].strip()}", callback_data=f"model_set:{mid}")]
+        for mid, desc in SUPPORTED_MODELS.items()
+    ]
+
+    await query.edit_message_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
