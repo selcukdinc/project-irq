@@ -4,24 +4,27 @@ Telegram üzerinden Claude Code'a uzaktan komut veren, birden fazla projeyi yön
 faz ilerlemesini takip eden ve tamamlanan görevlerin özetini raporlayan
 akıllı geliştirme asistanı.
 
-**Bot:** [@ireque_bot](https://t.me/reque_bot)
+**Bot:** [@ireque_bot](https://t.me/ireque_bot)
 
 ---
 
 ## ✨ Özellikler
 
-### ✅ Mevcut (Faz 1–4)
+### ✅ Mevcut (Faz 1–4 + 2D)
 - 🤖 Telegram bot — `/start`, `/status`, `/help`, `/ping`
 - 🏠 Mac'te yerel çalışma — sunucu gereksiz, maliyet $0
-- 📂 **Çoklu Proje Yönetimi** — Telegram'dan proje seçimi, ROADMAP takibi (`/projects`, `/addproject`, `/roadmap`, `/phase`, `/current`)
+- 📂 **Çoklu Proje Yönetimi** — `irq init` ile kayıt, inline butonlarla seçim
+- 📍 **Bağlam Komutları** — `/where` (neredeyim?), `/overview` (tüm projeler)
+- 🗺 **ROADMAP Takibi** — faz ilerleme çubuğu, detay, inline navigasyon (← Geri)
 - 🖥️ **Uzaktan Claude Code** — Telegram'dan prompt gönder, sonucu al (`/run`, `/cancel`)
 - 🔐 **Güvenlik & Kontrol** — admin doğrulama, hassas komut onayı, rate limiting
-- 🔄 **Model Kontrolü** — Claude Code modelini Telegram'dan görme/değiştirme (`/model`)
+- 🔄 **Model Kontrolü** — Sonnet / Opus / Haiku seçimi inline butonlarla (`/model`)
 
 ### ⏳ Planlanan
-- 📊 **Faz Bildirimleri** — tamamlanan görevlerin otomatik özet raporu
+- 📊 **Faz Bildirimleri** — tamamlanan görevlerin otomatik özeti + canlı output
 - 🔍 **Watchdog** — Claude Code log izleme, loop tespiti, `/pause` `/resume`
-- 💰 **Maliyet Kontrolü** — API harcama takibi ve limit, `/budget` `/cost`
+- 🏠 **Command Center** — `/menu` ile tek panelden tüm kontrol
+- 💰 **Maliyet Kontrolü** — API harcama takibi, `/budget` `/cost`
 - 👥 **Çok Kullanıcı** — SQLite, kullanıcı bazlı izolasyon
 - 📱 **Flutter Mobil** — IRQ Admin uygulaması
 
@@ -33,22 +36,25 @@ akıllı geliştirme asistanı.
 ┌──────────────┐           ┌────────────────────────────┐
 │   Telegram   │  Bot API  │  Mac (Senin Bilgisayarın)  │
 │   @ireque_bot │ ◄────────►│                            │
-│   (Bulut)    │  polling   │  IRQ Bot                   │
+│   (Bulut)    │  polling   │  IRQ Bot (Python)          │
 └──────────────┘           │  ├── Telegram handler'lar   │
        ▲                   │  ├── Claude Code CLI runner │
        │                   │  ├── Proje registry         │
    Telegram                │  ├── ROADMAP parser         │
    Kullanıcısı             │  └── Model manager          │
                            │                             │
+                           │  irq CLI (terminal)         │
+                           │  └── irq init <path>        │
+                           │                             │
                            │  ~/Projects/                │
-                           │  ├── project-irq/           │
+                           │  ├── project-irq/  ← aktif  │
                            │  ├── project-xyz/           │
                            │  └── ...                    │
                            └─────────────────────────────┘
 ```
 
 > **Sunucu yok** — her şey yerel Mac'te çalışır.
-> Mac açıkken Telegram'dan komut verirsin, Claude Code çalışır.
+> Bilgisayar açıkken Telegram'dan komut verirsin, Claude Code çalışır.
 
 ---
 
@@ -56,7 +62,7 @@ akıllı geliştirme asistanı.
 
 ```bash
 # 1. Repoyu klonla
-git clone https://github.com/KULLANICI/project-irq.git
+git clone https://github.com/selcukdinc/project-irq.git
 cd project-irq
 
 # 2. Venv oluştur
@@ -66,40 +72,67 @@ pip install -r bot/requirements.txt
 
 # 3. .env oluştur
 cp .env.example .env
-# Token ve Chat ID'yi yaz
+# TELEGRAM_TOKEN ve ADMIN_CHAT_ID'yi yaz
 
-# 4. Bot'u başlat
+# 4. Projeyi sisteme kaydet
+python bot/cli.py init          # mevcut dizin
+python bot/cli.py list          # kayıtlı projeleri gör
+
+# 5. Bot'u başlat
 python bot/main.py
 ```
+
+Telegram'dan `/where` yazarak başla.
 
 ---
 
 ## ⚙️ Gereksinimler
 
 - Python 3.11+
-- Telegram bot token (@BotFather)
-- Claude Code CLI (Faz 3+, Antigravity extension)
+- Telegram bot token ([@BotFather](https://t.me/BotFather))
+- [Claude Code CLI](https://claude.ai/code) (`/run` komutu için)
 
 ---
 
 ## 📋 Telegram Bot Komutları
 
+### Bağlam & Navigasyon
+| Komut | Açıklama |
+|-------|----------|
+| `/where` | Aktif proje + mevcut faz + sıradaki adım |
+| `/overview` | Tüm projelerin ilerleme özeti |
+
+### Proje Yönetimi
+| Komut | Açıklama |
+|-------|----------|
+| `/projects` | Proje listesi + inline seçim |
+| `/current` | Aktif proje göster |
+| `/roadmap` | Faz ilerleme durumu |
+| `/phase <no>` | Belirli fazın detayı |
+| `/addproject <isim> <path>` | Proje kaydet (terminal'de `irq init` tercih edilir) |
+| `/removeproject <id>` | Proje sil |
+
+### Claude Code
+| Komut | Açıklama |
+|-------|----------|
+| `/run <prompt>` | Claude Code'a prompt gönder |
+| `/cancel` | Çalışan komutu iptal et |
+| `/model` | Aktif modeli göster + inline değiştir |
+
+### Sistem
 | Komut | Açıklama |
 |-------|----------|
 | `/start` | Bot başlat, Chat ID öğren |
 | `/status` | Sistem durumu |
 | `/help` | Komut listesi |
-| `/ping` | Bot canlı mı kontrolü |
-| `/projects` | Proje listesi (inline seçim) |
-| `/addproject <isim> <path>` | Yeni proje kaydet |
-| `/removeproject <id>` | Proje sil |
-| `/current` | Aktif proje göster |
-| `/roadmap` | Faz ilerleme durumu |
-| `/phase <no>` | Belirli faz detayı |
-| `/run <prompt>` | Claude Code'a prompt gönder |
-| `/cancel` | Çalışan komutu iptal et |
-| `/model` | Aktif modeli göster + inline seçim |
-| `/model <model_adı>` | Modeli değiştir |
+| `/ping` | Bot canlı mı? |
+
+### Terminal CLI (`irq`)
+| Komut | Açıklama |
+|-------|----------|
+| `python bot/cli.py init` | Mevcut projeyi sisteme kaydet |
+| `python bot/cli.py init <path>` | Başka projeyi kaydet |
+| `python bot/cli.py list` | Kayıtlı projeleri listele |
 
 ---
 

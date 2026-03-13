@@ -214,6 +214,28 @@
 - [ ] `/kill` komutu: process'i sonlandırır
 - [ ] Inline buton callback'leri çalışıyor
 
+### 6D — /menu Command Center
+
+> Hedef: Tüm özelliklerin tek bir inline mesajdan kontrol edilebildiği
+> ana panel. Faz 6A-6C tamamlanınca mevcut callback handler'ları
+> zaten hazır olduğundan sadece UI katmanı eklenir (~1-2 saat).
+
+- [ ] `cmd_menu` ve `_build_menu_content()` helper'ı yazıldı
+- [ ] Ana panel mesajı:
+  ```
+  🏠 IRQ Command Center
+  📂 <proje_adı>  <bar> %<ilerleme>
+
+  [▶️ Çalıştır]    [⏹ İptal]
+  [📊 Roadmap]    [📂 Projeler]
+  [🤖 Model]      [💰 Maliyet]
+  [🔍 Watchdog]   [⚙️ Ayarlar]
+  ```
+- [ ] "▶️ Çalıştır" butonu: prompt giriş akışını başlatır
+- [ ] "📊 Roadmap" butonu: `/where` ile entegre (← Geri ile)
+- [ ] Tüm butonlar mevcut callback handler'larını tetikler (yeni iş mantığı gerekmez)
+- [ ] `/menu` BotFather komut listesine eklendi
+
 ---
 
 ## Faz 7 — Maliyet Kontrolü
