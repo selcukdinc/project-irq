@@ -13,11 +13,14 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path)
 
+from telegram import BotCommand
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
-from handlers.commands import cmd_start, cmd_status, cmd_help, cmd_ping
+from handlers.commands import cmd_start, cmd_status, cmd_help, cmd_ping, cmd_restart
 from handlers.projects import (
     callback_phase_detail,
+    callback_rdmap_faz,
+    callback_rdmap_page,
     callback_select_project,
     callback_where_back,
     callback_where_phase,
@@ -32,6 +35,7 @@ from handlers.projects import (
 )
 from handlers.claude_cmds import (
     callback_menu,
+    callback_menu_model_set,
     callback_model_set,
     callback_run_confirm,
     cmd_cancel,
@@ -65,10 +69,11 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------
 def register_handlers(app: Application) -> None:
     # Faz 1
-    app.add_handler(CommandHandler("start",  cmd_start))
-    app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("help",   cmd_help))
-    app.add_handler(CommandHandler("ping",   cmd_ping))
+    app.add_handler(CommandHandler("start",   cmd_start))
+    app.add_handler(CommandHandler("status",  cmd_status))
+    app.add_handler(CommandHandler("help",    cmd_help))
+    app.add_handler(CommandHandler("ping",    cmd_ping))
+    app.add_handler(CommandHandler("restart", cmd_restart))
 
     # Faz 2A — Proje yönetimi
     app.add_handler(CommandHandler("projects",      cmd_projects))
@@ -81,6 +86,8 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("roadmap",  cmd_roadmap))
     app.add_handler(CommandHandler("phase",    cmd_phase))
     app.add_handler(CallbackQueryHandler(callback_phase_detail, pattern=r"^phase_detail:"))
+    app.add_handler(CallbackQueryHandler(callback_rdmap_faz,    pattern=r"^rdmap_faz:"))
+    app.add_handler(CallbackQueryHandler(callback_rdmap_page,   pattern=r"^rdmap_page:"))
 
     # Faz 2D — Bağlam komutları
     app.add_handler(CommandHandler("where",    cmd_where))
@@ -109,7 +116,8 @@ def register_handlers(app: Application) -> None:
 
     # Faz 6D — /menu Command Center
     app.add_handler(CommandHandler("menu", cmd_menu))
-    app.add_handler(CallbackQueryHandler(callback_menu, pattern=r"^menu_"))
+    app.add_handler(CallbackQueryHandler(callback_menu,           pattern=r"^menu_"))
+    app.add_handler(CallbackQueryHandler(callback_menu_model_set, pattern=r"^mmdl:"))
 
     # Faz 7 — Maliyet kontrolü
     app.add_handler(CommandHandler("budget", cmd_budget))
@@ -121,6 +129,57 @@ def register_handlers(app: Application) -> None:
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
+_BOT_COMMANDS = [
+    BotCommand("start",         "Bot başlat, Chat ID öğren"),
+    BotCommand("status",        "Sistem durumu"),
+    BotCommand("ping",          "Bot canlı mı?"),
+    BotCommand("restart",       "Botu yeniden başlat"),
+    BotCommand("help",          "Komut listesi"),
+    BotCommand("menu",          "Ana kontrol paneli"),
+    BotCommand("where",         "Hızlı bağlam: proje + faz + sıradaki adım"),
+    BotCommand("overview",      "Tüm projelerin özet durumu"),
+    BotCommand("run",           "Claude Code'a prompt gönder"),
+    BotCommand("cancel",        "Çalışan komutu iptal et"),
+    BotCommand("history",       "Son çalıştırmaların listesi"),
+    BotCommand("roadmap",       "Aktif projenin faz durumu"),
+    BotCommand("phase",         "Belirli bir fazın detayı"),
+    BotCommand("projects",      "Kayıtlı projeleri listele"),
+    BotCommand("current",       "Aktif projeyi göster"),
+    BotCommand("addproject",    "Yeni proje kaydet"),
+    BotCommand("removeproject", "Proje sil"),
+    BotCommand("model",         "Model bilgisi / değiştir"),
+    BotCommand("pause",         "Claude Code'u duraklat"),
+    BotCommand("resume",        "Claude Code'u devam ettir"),
+    BotCommand("kill",          "Çalışan process'i sonlandır"),
+    BotCommand("budget",        "Günlük maliyet limiti"),
+    BotCommand("cost",          "Harcama özeti"),
+]
+
+
+async def _post_init(app: Application) -> None:
+    """Bot başlangıcında komutları BotFather'a kaydet."""
+    try:
+        await app.bot.set_my_commands(_BOT_COMMANDS)
+        logger.info("BotFather komut listesi güncellendi (%d komut)", len(_BOT_COMMANDS))
+    except Exception as exc:
+        logger.warning("Komut listesi güncellenemedi: %s", exc)
+
+    # Restart bildirimi
+    import json
+    from core.config import CONFIG_FILE
+    restart_file = CONFIG_FILE.parent / "restart.json"
+    if restart_file.exists():
+        try:
+            with open(restart_file, "r") as f:
+                data = json.load(f)
+            chat_id = data.get("chat_id")
+            if chat_id:
+                await app.bot.send_message(chat_id=chat_id, text="🚀 *Yeniden başladım!* Komutlarınızı bekliyorum.", parse_mode="Markdown")
+            restart_file.unlink()
+        except Exception as exc:
+            logger.error("Restart bildirimi gönderilemedi: %s", exc)
+
+
 def main() -> None:
     token = os.environ.get("TELEGRAM_TOKEN")
     if not token:
@@ -129,7 +188,13 @@ def main() -> None:
 
     logger.info("IRQ Watchdog Bot başlatılıyor...")
 
-    app = Application.builder().token(token).concurrent_updates(True).build()
+    app = (
+        Application.builder()
+        .token(token)
+        .concurrent_updates(True)
+        .post_init(_post_init)
+        .build()
+    )
     register_handlers(app)
 
     async def error_handler(update, context):

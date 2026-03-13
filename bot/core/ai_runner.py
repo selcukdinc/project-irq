@@ -8,7 +8,9 @@ Faz 7: Maliyet takibi ve limit kontrolü.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import signal
 import time
 from dataclasses import dataclass, field
@@ -28,12 +30,13 @@ LineCallback = Callable[[str], None]
 @dataclass
 class RunResult:
     """Claude Code CLI çalıştırma sonucu."""
-    stdout: str = ""
+    stdout: str = ""        # Ham çıktı (maliyet parsing için)
     stderr: str = ""
     returncode: int = -1
     elapsed_seconds: float = 0.0
     cancelled: bool = False
     wall_start: float = 0.0   # time.time() — Faz 5 history için
+    display_output: str = ""  # stream-json'dan parse edilen son çıktı
 
     @property
     def ok(self) -> bool:
@@ -41,13 +44,15 @@ class RunResult:
 
     @property
     def output(self) -> str:
-        """Kullanıcıya gösterilecek çıktı."""
+        """Kullanıcıya gösterilecek çıktı: önce display_output, sonra stdout."""
+        if self.display_output:
+            return self.display_output
         return self.stdout.strip() if self.ok else (self.stderr.strip() or self.stdout.strip())
 
 
-class ClaudeRunner:
+class AIRunner:
     """
-    Claude Code CLI wrapper.
+    Claude Code ve Gemini CLI wrapper.
     Aynı anda sadece 1 process çalışır (eşzamanlılık koruması).
     Faz 6: pause/resume (SIGSTOP/SIGCONT) ve streaming output desteği.
     """
@@ -56,6 +61,7 @@ class ClaudeRunner:
         self._process: Optional[asyncio.subprocess.Process] = None
         self._lock = asyncio.Lock()
         self._paused = False
+        self._stream_result_text: str = ""  # stream-json result event'ten gelen son çıktı
 
         # Faz 7: Maliyet takibi
         config_dir = Path.home() / ".irq"
@@ -79,14 +85,7 @@ class ClaudeRunner:
         line_callback: LineCallback | None = None,
     ) -> RunResult:
         """
-        Claude Code CLI'ı çalıştır ve sonucu döndür.
-
-        Args:
-            prompt: Claude'a gönderilecek prompt
-            project_path: Proje dizini (--add-dir)
-            model: Kullanılacak model (varsayılan: config'den)
-            timeout: Timeout (saniye, varsayılan: config'den)
-            line_callback: Her çıktı satırı için çağrılacak callable (Faz 6A)
+        Claude Code veya Gemini CLI'ı çalıştır ve sonucu döndür.
         """
         if self.is_running:
             return RunResult(
@@ -97,16 +96,31 @@ class ClaudeRunner:
         model = model or get_current_model()
         timeout = timeout or CLAUDE_TIMEOUT
         self._paused = False
+        self._stream_result_text = ""
 
-        cmd = [
-            "claude",
-            "-p", prompt,
-            "--model", model,
-            "--add-dir", project_path,
-            "--verbose",  # Faz 7: Maliyet bilgisi için verbose output
-        ]
+        # Hangi CLI kullanılacak?
+        is_gemini = model.lower().startswith("gemini")
+        cli_cmd = "gemini" if is_gemini else "claude"
 
-        logger.info("Claude CLI çalıştırılıyor: model=%s, path=%s", model, project_path)
+        if is_gemini:
+            cmd = [
+                "gemini",
+                "-p", prompt,
+                "--model", model,
+                "--output-format", "stream-json",
+                "--yolo",  # Otomatik onay
+            ]
+        else:
+            cmd = [
+                "claude",
+                "-p", prompt,
+                "--model", model,
+                "--add-dir", project_path,
+                "--output-format", "stream-json",
+                "--verbose",
+            ]
+
+        logger.info("%s CLI çalıştırılıyor: model=%s, path=%s", cli_cmd.capitalize(), model, project_path)
         logger.debug("Prompt: %s", prompt[:200])
 
         start = time.monotonic()
@@ -131,20 +145,20 @@ class ClaudeRunner:
                     result.stderr = stderr_buf
                     result.returncode = self._process.returncode or 0
                 except asyncio.TimeoutError:
-                    logger.warning("Claude CLI timeout (%ds)", timeout)
+                    logger.warning("%s CLI timeout (%ds)", cli_cmd.capitalize(), timeout)
                     self._process.kill()
                     await self._process.wait()
                     result.stderr = f"⏱️ Timeout: {timeout} saniye aşıldı."
                     result.returncode = -1
 
             except FileNotFoundError:
-                result.stderr = "❌ 'claude' CLI bulunamadı. Claude Code kurulu mu?"
+                result.stderr = f"❌ '{cli_cmd}' CLI bulunamadı. Kurulu mu?"
                 result.returncode = 127
-                logger.error("claude CLI bulunamadı")
+                logger.error("%s CLI bulunamadı", cli_cmd)
             except Exception as exc:
                 result.stderr = f"❌ Beklenmeyen hata: {exc}"
                 result.returncode = 1
-                logger.error("Claude CLI hatası: %s", exc, exc_info=True)
+                logger.error("%s CLI hatası: %s", cli_cmd, exc, exc_info=True)
             finally:
                 self._process = None
                 self._paused = False
@@ -152,36 +166,81 @@ class ClaudeRunner:
 
         status = "OK" if result.ok else "FAIL"
         logger.info(
-            "Claude CLI tamamlandı: %s (%.1fs, rc=%d)",
-            status, result.elapsed_seconds, result.returncode,
+            "%s CLI tamamlandı: %s (%.1fs, rc=%d)",
+            cli_cmd.capitalize(), status, result.elapsed_seconds, result.returncode,
         )
 
-        # Faz 7: Maliyet takibi
-        try:
-            # Proje adını path'den çıkar
-            project_name = Path(project_path).name
+        # stream-json sonucu varsa display_output olarak set et
+        result.display_output = self._stream_result_text
 
-            # Sadece başarılı çalıştırmaları kaydet (maliyet oluşanları)
-            if result.ok or (result.returncode != 127):  # CLI bulunamadı hatası değilse
-                cost_entry = self._cost_tracker.record_usage(
-                    project=project_name,
-                    prompt=prompt,
-                    model=model,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                    duration_seconds=result.elapsed_seconds
-                )
-
-                logger.debug(f"Maliyet kaydedildi: ${cost_entry.cost_usd:.4f}")
-
-                # Günlük limit kontrolü
-                if self._cost_tracker.check_daily_limit_exceeded():
-                    logger.warning("⚠️ Günlük maliyet limiti aşıldı!")
-
-        except Exception as exc:
-            logger.error("Maliyet takip hatası: %s", exc)
+        # Faz 7: Maliyet takibi (Gemini için şimdilik devre dışı veya basit tutulabilir)
+        if not is_gemini:
+            try:
+                project_name = Path(project_path).name
+                if result.ok or (result.returncode != 127):
+                    cost_entry = self._cost_tracker.record_usage(
+                        project=project_name,
+                        prompt=prompt,
+                        model=model,
+                        stdout=result.stdout,
+                        stderr=result.stderr,
+                        duration_seconds=result.elapsed_seconds
+                    )
+                    logger.debug(f"Maliyet kaydedildi: ${cost_entry.cost_usd:.4f}")
+                    if self._cost_tracker.check_daily_limit_exceeded():
+                        logger.warning("⚠️ Günlük maliyet limiti aşıldı!")
+            except Exception as exc:
+                logger.error("Maliyet takip hatası: %s", exc)
 
         return result
+
+    def _parse_stream_event(self, line: str) -> str | None:
+        """
+        stream-json event satırını parse et, Telegram'a gösterilecek
+        display text döndür (gösterilmeyecekse None).
+        Yan etki: result event görülünce self._stream_result_text set edilir.
+        """
+        stripped = line.strip()
+        if not stripped:
+            return None
+        try:
+            event = json.loads(stripped)
+        except (json.JSONDecodeError, ValueError):
+            # JSON değil → ham satırı göster (eski format uyumluluğu)
+            return stripped
+
+        etype = event.get("type", "")
+
+        if etype == "assistant":
+            message = event.get("message", {})
+            content = message.get("content", [])
+            texts = [c.get("text", "") for c in content if c.get("type") == "text"]
+            text = " ".join(t for t in texts if t).strip()
+            if text:
+                return f"🤖 {text[:300]}"
+            return None
+
+        elif etype == "tool":
+            name = event.get("name", "")
+            inp = event.get("input", {})
+            fp = (
+                inp.get("file_path")
+                or inp.get("path")
+                or inp.get("command", "")[:60]
+            )
+            if fp:
+                fp = os.path.basename(str(fp)) or str(fp)[:60]
+                return f"🔧 {name}: {fp}"
+            return f"🔧 {name}"
+
+        elif etype == "result":
+            self._stream_result_text = event.get("result", "")
+            return None  # Tamamlanma mesajında gösterilecek
+
+        elif etype == "system":
+            return None  # init gibi sistem mesajları — atla
+
+        return None
 
     async def _read_streams(
         self,
@@ -189,7 +248,8 @@ class ClaudeRunner:
     ) -> tuple[str, str]:
         """
         stdout ve stderr'ı paralel oku.
-        line_callback varsa her stdout satırı için çağırır.
+        line_callback varsa her stdout satırı için parse edilmiş display text ile çağırır.
+        Ham stdout (JSONL) maliyet tracking için döndürülür.
         """
         proc = self._process
         assert proc is not None
@@ -206,10 +266,12 @@ class ClaudeRunner:
                 line = raw.decode("utf-8", errors="replace")
                 stdout_lines.append(line)
                 if line_callback:
-                    try:
-                        line_callback(line)
-                    except Exception as exc:
-                        logger.debug("line_callback hatası: %s", exc)
+                    display = self._parse_stream_event(line)
+                    if display is not None:
+                        try:
+                            line_callback(display + "\n")
+                        except Exception as exc:
+                            logger.debug("line_callback hatası: %s", exc)
 
         async def read_stderr() -> None:
             assert proc.stderr is not None
@@ -292,4 +354,4 @@ class ClaudeRunner:
 
 
 # Singleton instance — tüm handler'lar bunu kullanır
-runner = ClaudeRunner()
+runner = AIRunner()

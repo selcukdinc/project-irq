@@ -10,7 +10,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from core.claude_runner import runner
+from core.ai_runner import runner
 from core.config import CLAUDE_MODEL
 
 logger = logging.getLogger(__name__)
@@ -76,3 +76,28 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("🏓 Pong!")
     logger.debug("/ping — %s", update.effective_chat.id)
+
+
+async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Botu yeniden başlat (self-restart)."""
+    chat_id = str(update.effective_chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await update.message.reply_text("🚫 Yetkiniz yok.")
+        return
+
+    import json
+    import sys
+    from core.config import CONFIG_FILE
+
+    restart_file = CONFIG_FILE.parent / "restart.json"
+    try:
+        with open(restart_file, "w") as f:
+            json.dump({"chat_id": chat_id}, f)
+    except Exception as exc:
+        logger.error("Restart dosyası yazılamadı: %s", exc)
+
+    await update.message.reply_text("🔄 Bot yeniden başlatılıyor... Lütfen bekleyin.")
+    logger.info("Bot yeniden başlatılıyor (kullanıcı: %s)", chat_id)
+
+    # Replace the current process
+    os.execv(sys.executable, [sys.executable] + sys.argv)

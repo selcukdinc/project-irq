@@ -11,7 +11,7 @@ import os
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from core.claude_runner import runner
+from core.ai_runner import runner
 
 logger = logging.getLogger(__name__)
 

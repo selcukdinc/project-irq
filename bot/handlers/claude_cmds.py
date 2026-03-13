@@ -20,7 +20,7 @@ from telegram.ext import ContextTypes
 import asyncio
 import sys
 
-from core.claude_runner import runner
+from core.ai_runner import runner
 from core.config import LOGS_DIR, ensure_irq_dirs
 from core.log_watcher import LogWatcher
 from core.model_manager import (
@@ -77,11 +77,19 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Prompt kontrolü
     if not context.args:
+        current_model = get_current_model()
+        is_gemini = current_model.lower().startswith("gemini")
+        provider = "Gemini" if is_gemini else "Claude"
+        
         await update.message.reply_text(
-            "📝 Kullanım: `/run <prompt>`\n\n"
-            "Örnek:\n"
-            "`/run bu projede kaç test var?`",
+            f"📝 *{provider} Çalıştırma*\n\n"
+            f"🤖 Aktif Model: `{current_model}`\n\n"
+            "Kullanım: `/run <prompt>`\n"
+            "Örnek: `/run bu projede kaç test var?`",
             parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🤖 Modeli Değiştir", callback_data="menu_model")
+            ]])
         )
         return
 
@@ -138,11 +146,16 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def _execute_run(update: Update, prompt: str, project: dict) -> None:
-    """Claude Code'u çalıştır ve sonucu gönder."""
+    """AI Runner'ı (Claude veya Gemini) çalıştır ve sonucu gönder."""
+    current_model = get_current_model()
+    is_gemini = current_model.lower().startswith("gemini")
+    provider = "Gemini" if is_gemini else "Claude Code"
+
     # "Çalışıyor" mesajı gönder
     status_msg = await update.effective_message.reply_text(
-        f"⏳ *Claude Code çalışıyor...*\n\n"
+        f"⏳ *{provider} çalışıyor...*\n\n"
         f"📂 Proje: {project['name']}\n"
+        f"🤖 Model: `{current_model}`\n"
         f"💬 Prompt: `{prompt[:100]}{'...' if len(prompt) > 100 else ''}`",
         parse_mode="Markdown",
     )
@@ -154,8 +167,9 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
 
     # Terminale başlık yazdır — hangi process çalışıyor görünsün
     print(f"\n{'='*60}", flush=True)
-    print(f"[IRQ] Claude CLI başlatıldı", flush=True)
+    print(f"[IRQ] {provider} başlatıldı", flush=True)
     print(f"[IRQ] Proje : {project['name']} ({project['path']})", flush=True)
+    print(f"[IRQ] Model : {current_model}", flush=True)
     print(f"[IRQ] Prompt: {prompt[:120]}", flush=True)
     print(f"{'='*60}", flush=True)
 
@@ -187,8 +201,9 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
                 await asyncio.sleep(4)
                 elapsed = _format_elapsed(time.monotonic() - start_time)
                 header = (
-                    f"⏳ *Çalışıyor...* ({elapsed})\n"
+                    f"⏳ *{provider} çalışıyor...* ({elapsed})\n"
                     f"📂 {project['name']}\n"
+                    f"🤖 `{current_model}`\n"
                     f"💬 `{prompt[:60]}{'…' if len(prompt) > 60 else ''}`\n"
                     f"_/cancel ile durdur_\n\n"
                 )
@@ -227,7 +242,7 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     watcher.stop_idle_monitor()
 
     print(f"\n{'='*60}", flush=True)
-    print(f"[IRQ] Claude CLI tamamlandı (rc={result.returncode}, {result.elapsed_seconds:.1f}s)", flush=True)
+    print(f"[IRQ] {provider} tamamlandı (rc={result.returncode}, {result.elapsed_seconds:.1f}s)", flush=True)
     print(f"{'='*60}\n", flush=True)
 
     # Faz 5: Çalıştırma geçmişine kaydet
@@ -541,10 +556,20 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     action = query.data  # "menu_run", "menu_cancel", vb.
 
     if action == "menu_run":
+        current_model = get_current_model()
+        is_gemini = current_model.lower().startswith("gemini")
+        provider = "Gemini" if is_gemini else "Claude"
+        
         await query.edit_message_text(
-            "📝 Çalıştırmak için `/run <prompt>` komutunu kullan.\n\n"
+            f"📝 *{provider} Çalıştırma*\n\n"
+            f"🤖 Aktif Model: `{current_model}`\n\n"
+            "Çalıştırmak için `/run <prompt>` komutunu kullan.\n\n"
             "Örnek: `/run projedeki test sayısını söyle`",
             parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🤖 Modeli Değiştir", callback_data="menu_model")],
+                [InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")]
+            ])
         )
 
     elif action == "menu_cancel":
@@ -594,42 +619,69 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 await query.answer("Devam ettirilemedi.", show_alert=True)
 
     elif action == "menu_roadmap":
-        # /where komutunu inline olarak göster
-        from handlers.projects import cmd_where
-        await query.edit_message_text(
-            "📊 Roadmap için /where veya /roadmap komutunu kullan.",
-            parse_mode="Markdown",
-        )
+        from handlers.projects import _build_roadmap_content
+        text, markup = _build_roadmap_content(back_to="menu", page=0)
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
 
     elif action == "menu_projects":
+        from core.project_registry import list_projects
+        projects = list_projects()
+        if not projects:
+            await query.edit_message_text(
+                "📂 Kayıtlı proje yok.\n\nTerminalde: `python bot/cli.py init`",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")
+                ]]),
+            )
+            return
+        buttons = [
+            [InlineKeyboardButton(
+                f"{'✅ ' if p.get('active') else '📁 '}{p['name']}",
+                callback_data=f"sel_proj:{p['id']}",
+            )]
+            for p in projects
+        ]
+        buttons.append([InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")])
         await query.edit_message_text(
-            "📂 Projeler için /projects komutunu kullan.",
+            "📂 *Kayıtlı Projeler*\nAktif projeyi değiştirmek için seç:",
             parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(buttons),
         )
 
     elif action == "menu_model":
         current = get_current_model()
-        buttons = [
-            [InlineKeyboardButton(
-                f"{'✅ ' if mid == current else ''}{desc.split('—')[0].strip()}",
-                callback_data=f"model_set:{mid}",
-            )]
-            for mid, desc in SUPPORTED_MODELS.items()
-        ]
         lines = [f"🤖 *Mevcut Model:* `{current}`\n", "📋 *Kullanılabilir Modeller:*"]
         for mid, desc in SUPPORTED_MODELS.items():
             marker = "✅" if mid == current else "  "
             lines.append(f"{marker} `{mid}`\n    _{desc}_")
+        buttons = [
+            [InlineKeyboardButton(
+                f"{'✅ ' if mid == current else ''}{desc.split('—')[0].strip()}",
+                callback_data=f"mmdl:{mid}",
+            )]
+            for mid, desc in SUPPORTED_MODELS.items()
+        ]
+        buttons.append([InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")])
         await query.edit_message_text(
             "\n".join(lines),
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(buttons),
         )
 
+    elif action == "menu_back":
+        text, markup = _build_menu_content()
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
+
     elif action == "menu_history":
         records = load_history(5)
         if not records:
-            await query.edit_message_text("📭 Henüz tamamlanmış çalıştırma yok.")
+            await query.edit_message_text(
+                "📭 Henüz tamamlanmış çalıştırma yok.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")
+                ]]),
+            )
             return
         lines = ["📋 *Son 5 Çalıştırma*\n"]
         for i, r in enumerate(records, 1):
@@ -641,4 +693,51 @@ async def callback_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 f"{i}. {r.status_emoji} {elapsed}\n"
                 f"   {prompt_short}"
             )
-        await query.edit_message_text("\n\n".join(lines), parse_mode="Markdown")
+        await query.edit_message_text(
+            "\n\n".join(lines),
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")
+            ]]),
+        )
+
+
+# ------------------------------------------------------------------
+# Inline callback — menüden model seçimi (mmdl:<model_id>)
+# ------------------------------------------------------------------
+async def callback_menu_model_set(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Menüdeki Model ekranından model seç ve listeyi güncelle."""
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = str(query.message.chat.id)
+    if ADMIN_CHAT_ID and chat_id != ADMIN_CHAT_ID:
+        await query.answer("🚫 Yetkiniz yok.", show_alert=True)
+        return
+
+    model_id = query.data.split(":", 1)[1]
+    current = get_current_model()
+
+    if model_id != current:
+        set_model(model_id)
+        current = model_id
+
+    lines = [f"🤖 *Aktif Model:* `{current}`\n", "📋 *Kullanılabilir Modeller:*"]
+    for mid, desc in SUPPORTED_MODELS.items():
+        marker = "✅" if mid == current else "  "
+        lines.append(f"{marker} `{mid}`\n    _{desc}_")
+
+    buttons = [
+        [InlineKeyboardButton(
+            f"{'✅ ' if mid == current else ''}{desc.split('—')[0].strip()}",
+            callback_data=f"mmdl:{mid}",
+        )]
+        for mid, desc in SUPPORTED_MODELS.items()
+    ]
+    buttons.append([InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")])
+
+    await query.edit_message_text(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )

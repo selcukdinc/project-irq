@@ -172,6 +172,10 @@ async def cmd_current(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 # ------------------------------------------------------------------
 # /roadmap — aktif projenin faz durumunu göster
 # ------------------------------------------------------------------
+_PHASES_PER_ROW = 4
+_PHASES_PER_PAGE = 12  # 3 satır × 4 buton
+
+
 def _roadmap_path_for(project: dict) -> str | None:
     """Projenin ROADMAP.md tam yolunu döndürür."""
     from pathlib import Path
@@ -179,35 +183,76 @@ def _roadmap_path_for(project: dict) -> str | None:
     return str(rp) if rp.is_file() else None
 
 
-async def cmd_roadmap(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+def _build_roadmap_content(
+    back_to: str = "",
+    page: int = 0,
+) -> tuple[str, InlineKeyboardMarkup | None]:
+    """
+    Roadmap özet mesajı ve faz butonlarını oluşturur.
+
+    Args:
+        back_to: "menu" → 🏠 Menü geri butonu ekle; "" → geri buton yok
+        page:    Faz sayfalama (her sayfada _PHASES_PER_PAGE faz)
+    """
     project = get_active_project()
     if not project:
-        await update.message.reply_text(
-            "📂 Aktif proje yok. Önce `/projects` ile proje seç.",
-            parse_mode="Markdown",
-        )
-        return
+        return "📂 Aktif proje yok. Önce `/projects` ile proje seç.", None
 
     rp = _roadmap_path_for(project)
     if not rp:
-        await update.message.reply_text("❌ ROADMAP dosyası bulunamadı.")
-        return
+        return f"❌ ROADMAP.md bulunamadı: `{project['path']}/ROADMAP.md`", None
 
     phases = parse_roadmap(rp)
+    if not phases:
+        return "❌ ROADMAP parse edilemedi.", None
+
     text = format_roadmap_summary(phases)
 
-    # Her faz için Detay butonu
-    buttons = []
-    for p in phases:
-        buttons.append([
-            InlineKeyboardButton(
-                f"📊 Faz {p.number} Detay", callback_data=f"phase_detail:{p.number}"
-            )
-        ])
+    total = len(phases)
+    start = page * _PHASES_PER_PAGE
+    end = min(start + _PHASES_PER_PAGE, total)
+    page_phases = phases[start:end]
 
+    # Faz butonları: 4'lü grid
+    buttons: list[list[InlineKeyboardButton]] = []
+    row: list[InlineKeyboardButton] = []
+    for p in page_phases:
+        emoji = p.status_emoji
+        row.append(InlineKeyboardButton(
+            f"{emoji} Faz {p.number}",
+            callback_data=f"rdmap_faz:{back_to}:{p.number}",
+        ))
+        if len(row) == _PHASES_PER_ROW:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+
+    # Sayfalama satırı
+    nav_row: list[InlineKeyboardButton] = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton(
+            "◀️ Önceki", callback_data=f"rdmap_page:{back_to}:{page - 1}"
+        ))
+    if end < total:
+        nav_row.append(InlineKeyboardButton(
+            "Sonraki ▶️", callback_data=f"rdmap_page:{back_to}:{page + 1}"
+        ))
+    if nav_row:
+        buttons.append(nav_row)
+
+    # Geri butonu
+    if back_to == "menu":
+        buttons.append([InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")])
+
+    return text, InlineKeyboardMarkup(buttons) if buttons else None
+
+
+async def cmd_roadmap(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text, markup = _build_roadmap_content(back_to="")
     await update.message.reply_text(
         text,
-        reply_markup=InlineKeyboardMarkup(buttons),
+        reply_markup=markup,
         parse_mode="Markdown",
     )
 
@@ -365,7 +410,7 @@ async def cmd_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 # ------------------------------------------------------------------
-# Inline buton callback — faz detayı
+# Inline buton callback — faz detayı (/phase komutu, eski butonlar)
 # ------------------------------------------------------------------
 async def callback_phase_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -391,6 +436,64 @@ async def callback_phase_detail(update: Update, context: ContextTypes.DEFAULT_TY
         format_phase_detail(phase),
         parse_mode="Markdown",
     )
+
+
+# ------------------------------------------------------------------
+# Inline callback — Roadmap grid'den faz detayı (rdmap_faz:back_to:no)
+# ------------------------------------------------------------------
+async def callback_rdmap_faz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Roadmap grid butonundan faz detayı. Geri butonu back_to'ya göre belirlenir."""
+    query = update.callback_query
+    await query.answer()
+
+    project = get_active_project()
+    if not project:
+        await query.edit_message_text("❌ Aktif proje yok.")
+        return
+
+    # callback_data: "rdmap_faz:{back_to}:{phase_no}"
+    parts = query.data.split(":", 2)
+    back_to = parts[1] if len(parts) > 1 else ""
+    phase_no = int(parts[2]) if len(parts) > 2 else 0
+
+    rp = _roadmap_path_for(project)
+    if not rp:
+        await query.edit_message_text("❌ ROADMAP dosyası bulunamadı.")
+        return
+
+    phase = get_phase(rp, phase_no)
+    if not phase:
+        await query.edit_message_text(f"❌ Faz {phase_no} bulunamadı.")
+        return
+
+    back_buttons: list[InlineKeyboardButton] = [
+        InlineKeyboardButton("← Roadmap", callback_data=f"rdmap_page:{back_to}:0"),
+    ]
+    if back_to == "menu":
+        back_buttons.append(InlineKeyboardButton("🏠 Menü", callback_data="menu_back"))
+
+    await query.edit_message_text(
+        format_phase_detail(phase),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([back_buttons]),
+    )
+
+
+# ------------------------------------------------------------------
+# Inline callback — Roadmap sayfalama (rdmap_page:back_to:page)
+# ------------------------------------------------------------------
+async def callback_rdmap_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Roadmap faz grid'ini belirtilen sayfada yeniden render eder."""
+    query = update.callback_query
+    await query.answer()
+
+    # callback_data: "rdmap_page:{back_to}:{page}"
+    parts = query.data.split(":", 2)
+    back_to = parts[1] if len(parts) > 1 else ""
+    page = int(parts[2]) if len(parts) > 2 else 0
+
+    text, markup = _build_roadmap_content(back_to=back_to, page=page)
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
 
 
 # ------------------------------------------------------------------

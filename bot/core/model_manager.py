@@ -19,6 +19,8 @@ SUPPORTED_MODELS: dict[str, str] = {
     "claude-sonnet-4-20250514": "Sonnet 4 — Dengeli (hız + zeka)",
     "claude-opus-4-20250514":   "Opus 4 — En güçlü, daha yavaş",
     "claude-haiku-4-5-20251001": "Haiku 4.5 — En hızlı, ekonomik",
+    "gemini-2.0-flash":          "Gemini 2.0 Flash — Çok hızlı",
+    "gemini-2.0-pro-exp-02-05":  "Gemini 2.0 Pro — Akıl yürütme odaklı",
 }
 
 # Model kısa etiketleri (inline buton callback için)
@@ -26,6 +28,8 @@ MODEL_ALIASES: dict[str, str] = {
     "sonnet4": "claude-sonnet-4-20250514",
     "opus4":   "claude-opus-4-20250514",
     "haiku45": "claude-haiku-4-5-20251001",
+    "flash":   "gemini-2.0-flash",
+    "pro":     "gemini-2.0-pro-exp-02-05",
 }
 
 
