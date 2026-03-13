@@ -17,9 +17,11 @@ from pathlib import Path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+import asyncio
+import sys
+
 from core.claude_runner import runner
 from core.config import LOGS_DIR, ensure_irq_dirs
-from core.cost_tracker import CostTracker  # Faz 7: Maliyet takibi
 from core.log_watcher import LogWatcher
 from core.model_manager import (
     SUPPORTED_MODELS,
@@ -137,8 +139,6 @@ async def cmd_run(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     """Claude Code'u çalıştır ve sonucu gönder."""
-    import sys
-
     # "Çalışıyor" mesajı gönder
     status_msg = await update.effective_message.reply_text(
         f"⏳ *Claude Code çalışıyor...*\n\n"
@@ -168,36 +168,52 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     watcher = LogWatcher(log_path=log_path, watchdog_callback=watchdog_cb)
     watcher.start_idle_monitor_task()
 
-    # line_callback: hem terminale yaz hem watcher'a ilet
+    # Canlı output buffer — Telegram mesajında gösterilecek son satırlar
+    _output_lines: list[str] = []
+    start_time = time.monotonic()
+
+    # line_callback: terminale yaz + watcher'a ilet + buffer'a ekle
     def _line_handler(line: str) -> None:
         sys.stdout.write(line)
         sys.stdout.flush()
         watcher.feed(line)
+        _output_lines.append(line)
 
-    # Telegram'a periyodik "hala çalışıyor" güncellemesi (her 30 sn)
-    start_time = time.monotonic()
-    _update_task: list[asyncio.Task] = []
-
-    async def _periodic_update() -> None:
-        """30 saniyede bir Telegram mesajını güncelle."""
+    # Background task: her 4 saniyede Telegram mesajını son çıktıyla güncelle
+    async def _live_update_loop() -> None:
         try:
+            last_text = ""
             while True:
-                await asyncio.sleep(30)
+                await asyncio.sleep(4)
                 elapsed = _format_elapsed(time.monotonic() - start_time)
+                header = (
+                    f"⏳ *Çalışıyor...* ({elapsed})\n"
+                    f"📂 {project['name']}\n"
+                    f"💬 `{prompt[:60]}{'…' if len(prompt) > 60 else ''}`\n"
+                    f"_/cancel ile durdur_\n\n"
+                )
+                if _output_lines:
+                    # Son satırları birleştir, 4096 char Telegram sınırı içinde kal
+                    max_out = 4096 - len(header) - 10
+                    recent = "".join(_output_lines[-40:])
+                    if len(recent) > max_out:
+                        recent = "…\n" + recent[-max_out:]
+                    new_text = header + recent.strip()
+                else:
+                    new_text = header + "_Başlatılıyor..._"
+
+                # Değişmediyse edit etme (Telegram "message not modified" hatası)
+                if new_text == last_text:
+                    continue
                 try:
-                    await status_msg.edit_text(
-                        f"⏳ *Claude Code çalışıyor...* ({elapsed})\n\n"
-                        f"📂 Proje: {project['name']}\n"
-                        f"💬 Prompt: `{prompt[:100]}{'...' if len(prompt) > 100 else ''}`\n\n"
-                        f"_/cancel ile iptal edebilirsin_",
-                        parse_mode="Markdown",
-                    )
+                    await status_msg.edit_text(new_text, parse_mode="Markdown")
+                    last_text = new_text
                 except Exception:
-                    pass  # Mesaj değişmediyse Telegram hata verir, yoksay
+                    pass  # Parse hatası veya rate limit — yoksay, bir sonrakinde tekrar dener
         except asyncio.CancelledError:
             pass
 
-    _update_task.append(asyncio.create_task(_periodic_update()))
+    _live_task = asyncio.create_task(_live_update_loop())
 
     # Claude Code çalıştır (streaming line_callback ile)
     result = await runner.run(
@@ -207,8 +223,7 @@ async def _execute_run(update: Update, prompt: str, project: dict) -> None:
     )
 
     # Cleanup
-    for t in _update_task:
-        t.cancel()
+    _live_task.cancel()
     watcher.stop_idle_monitor()
 
     print(f"\n{'='*60}", flush=True)
