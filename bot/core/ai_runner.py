@@ -62,6 +62,7 @@ class AIRunner:
         self._lock = asyncio.Lock()
         self._paused = False
         self._stream_result_text: str = ""  # stream-json result event'ten gelen son çıktı
+        self._gemini_buffer: str = ""       # Gemini delta mesajlarını birleştirmek için
 
         # Faz 7: Maliyet takibi
         config_dir = Path.home() / ".irq"
@@ -97,16 +98,18 @@ class AIRunner:
         timeout = timeout or CLAUDE_TIMEOUT
         self._paused = False
         self._stream_result_text = ""
+        self._gemini_buffer = ""
 
         # Hangi CLI kullanılacak?
         is_gemini = model.lower().startswith("gemini")
         cli_cmd = "gemini" if is_gemini else "claude"
 
         if is_gemini:
+            # Not: OAuth personal auth ile --model flag'i çalışmıyor;
+            # Gemini CLI varsayılan modeli (auto-gemini-3) kullanılır.
             cmd = [
                 "gemini",
                 "-p", prompt,
-                "--model", model,
                 "--output-format", "stream-json",
                 "--yolo",  # Otomatik onay
             ]
@@ -199,6 +202,7 @@ class AIRunner:
         stream-json event satırını parse et, Telegram'a gösterilecek
         display text döndür (gösterilmeyecekse None).
         Yan etki: result event görülünce self._stream_result_text set edilir.
+        Hem Claude hem Gemini CLI formatını destekler.
         """
         stripped = line.strip()
         if not stripped:
@@ -211,7 +215,29 @@ class AIRunner:
 
         etype = event.get("type", "")
 
-        if etype == "assistant":
+        # --- Gemini CLI stream-json formatı ---
+        # {"type":"message","role":"assistant","content":"...","delta":true}
+        # {"type":"result","status":"success","stats":{...}}
+        # {"type":"init","model":"auto-gemini-3"}
+        if etype == "message":
+            role = event.get("role", "")
+            content = event.get("content", "")
+            is_delta = event.get("delta", False)
+            if role == "assistant" and is_delta and content:
+                self._gemini_buffer += content
+            return None  # Delta'ları tek tek gösterme, sonuçta göster
+
+        elif etype == "result" and "status" in event:
+            # Gemini result event
+            if self._gemini_buffer:
+                self._stream_result_text = self._gemini_buffer
+            return None
+
+        elif etype == "init":
+            return None  # Gemini init mesajı — atla
+
+        # --- Claude CLI stream-json formatı ---
+        elif etype == "assistant":
             message = event.get("message", {})
             content = message.get("content", [])
             texts = [c.get("text", "") for c in content if c.get("type") == "text"]
@@ -234,6 +260,7 @@ class AIRunner:
             return f"🔧 {name}"
 
         elif etype == "result":
+            # Claude result event
             self._stream_result_text = event.get("result", "")
             return None  # Tamamlanma mesajında gösterilecek
 
