@@ -23,6 +23,7 @@ class Step:
 class Phase:
     number: int
     title: str
+    label: str = ""         # görünen etiket: "Faz 1", "v1.7", "Teknik Borç" vb.
     description: str = ""
     steps: list[Step] = field(default_factory=list)
 
@@ -47,8 +48,10 @@ class Phase:
         return "⏳"
 
 
-# Regex patterns
-_PHASE_RE = re.compile(r"^##\s+Faz\s+(\d+)\s*[—–-]\s*(.+)$")
+# Regex patterns — çoklu ROADMAP format desteği
+_FAZ_RE  = re.compile(r"^##\s+Faz\s+(\d+)\s*[—–-]\s*(.+)$")  # ## Faz N — Başlık
+_VER_RE  = re.compile(r"^##\s+(v[\d.]+)\s*[—–-]\s*(.+)$")     # ## vX.Y — Başlık
+_H2_RE   = re.compile(r"^##\s+(.+)$")                           # ## Herhangi başlık (fallback)
 _STEP_RE = re.compile(r"^-\s+\[([ xX])\]\s+(.+)$")
 _DESC_RE = re.compile(r"^>\s*(?:Hedef:\s*)?(.+)$")
 
@@ -67,10 +70,36 @@ def parse_roadmap(roadmap_path: str | Path) -> list[Phase]:
     for line in text.splitlines():
         stripped = line.strip()
 
-        # Yeni faz başlığı
-        m = _PHASE_RE.match(stripped)
+        # ## Faz N — Başlık  (orijinal IRQ formatı)
+        m = _FAZ_RE.match(stripped)
         if m:
-            current = Phase(number=int(m.group(1)), title=m.group(2).strip())
+            current = Phase(
+                number=len(phases) + 1,
+                title=m.group(2).strip(),
+                label=f"Faz {m.group(1)}",
+            )
+            phases.append(current)
+            continue
+
+        # ## vX.Y — Başlık  (semantik versiyon formatı)
+        m = _VER_RE.match(stripped)
+        if m:
+            current = Phase(
+                number=len(phases) + 1,
+                title=m.group(2).strip(),
+                label=m.group(1),
+            )
+            phases.append(current)
+            continue
+
+        # ## Genel başlık  (fallback — her türlü ## başlık)
+        m = _H2_RE.match(stripped)
+        if m:
+            current = Phase(
+                number=len(phases) + 1,
+                title="",
+                label=m.group(1).strip(),
+            )
             phases.append(current)
             continue
 
@@ -122,8 +151,9 @@ def format_roadmap_summary(phases: list[Phase]) -> str:
 
     for p in phases:
         bar = _progress_bar(p.progress)
+        header = f"{p.label} — {p.title}" if p.title else p.label
         lines.append(
-            f"{p.status_emoji} *Faz {p.number}* — {p.title}\n"
+            f"{p.status_emoji} *{header}*\n"
             f"   {bar} {p.completed}/{p.total}"
         )
 
@@ -133,8 +163,9 @@ def format_roadmap_summary(phases: list[Phase]) -> str:
 def format_phase_detail(phase: Phase) -> str:
     """Tek bir fazın detaylı görünümünü Telegram mesajı olarak formatla."""
     bar = _progress_bar(phase.progress)
+    header = f"{phase.label} — {phase.title}" if phase.title else phase.label
     lines = [
-        f"{phase.status_emoji} *Faz {phase.number} — {phase.title}*",
+        f"{phase.status_emoji} *{header}*",
         f"{bar} %{phase.progress:.0f} ({phase.completed}/{phase.total})",
     ]
 

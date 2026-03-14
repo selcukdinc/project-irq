@@ -219,7 +219,7 @@ def _build_roadmap_content(
     for p in page_phases:
         emoji = p.status_emoji
         row.append(InlineKeyboardButton(
-            f"{emoji} Faz {p.number}",
+            f"{emoji} {p.label}",
             callback_data=f"rdmap_faz:{back_to}:{p.number}",
         ))
         if len(row) == _PHASES_PER_ROW:
@@ -334,7 +334,7 @@ def _build_where_content() -> tuple[str, InlineKeyboardMarkup] | tuple[str, None
         f"📂 *{project['name']}*",
         "",
         f"🗺 `{bar}` %{pct:.0f}  ({completed_steps}/{total_steps} adım)",
-        f"📍 Faz {current_phase.number}/{total_phases} — {current_phase.title}",
+        f"📍 {current_phase.label} ({current_phase.number}/{total_phases}){' — ' + current_phase.title if current_phase.title else ''}",
     ]
     if next_step:
         lines += ["", "⏭ *Sıradaki adım:*", f"⬜ {next_step[:120]}"]
@@ -384,7 +384,7 @@ async def cmd_overview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             current = next(
                 (ph for ph in phases if ph.total > 0 and ph.progress < 100), None
             )
-            phase_label = f"Faz {current.number}/{len(phases)}" if current else "✅ Tamamlandı"
+            phase_label = f"{current.label} ({current.number}/{len(phases)})" if current else "✅ Tamamlandı"
             lines.append(f"*{p['name']}*{active_mark}")
             lines.append(f"  `{bar}` %{pct:.0f}  —  {phase_label}")
         else:
