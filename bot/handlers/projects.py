@@ -73,6 +73,7 @@ async def callback_select_project(update: Update, context: ContextTypes.DEFAULT_
             )]
             for p in projects
         ]
+        buttons.append([InlineKeyboardButton("🏠 ← /where", callback_data="where_back")])
         await query.edit_message_text(
             "📂 *Kayıtlı Projeler*\nAktif projeyi değiştirmek için seç:",
             parse_mode="Markdown",
@@ -88,9 +89,17 @@ async def callback_select_project(update: Update, context: ContextTypes.DEFAULT_
             f"✅ Aktif proje değiştirildi: *{project['name']}*\n"
             f"📁 `{project['path']}`",
             parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")
+            ]])
         )
     else:
-        await query.edit_message_text("❌ Proje bulunamadı.")
+        await query.edit_message_text(
+            "❌ Proje bulunamadı.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🏠 ← Menü", callback_data="menu_back")
+            ]])
+        )
 
 
 # ------------------------------------------------------------------
